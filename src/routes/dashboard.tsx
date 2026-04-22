@@ -95,7 +95,7 @@ function Overview() {
           {user?.email} · <span className="font-semibold uppercase text-accent">{role}</span>
         </p>
       </div>
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Link to="/dashboard/orders">
           <Card className="p-6 transition-shadow hover:shadow-lg">
             <ClipboardList className="h-8 w-8 text-accent" />
@@ -103,18 +103,25 @@ function Overview() {
             <div className="text-sm text-muted-foreground">View and manage orders</div>
           </Card>
         </Link>
+        <Link to="/dashboard/followups">
+          <Card className="p-6 transition-shadow hover:shadow-lg">
+            <PhoneCall className="h-8 w-8 text-accent" />
+            <div className="mt-3 font-semibold text-primary">Follow-Ups</div>
+            <div className="text-sm text-muted-foreground">CRM reminders & calls</div>
+          </Card>
+        </Link>
         <Link to="/dashboard/clients">
           <Card className="p-6 transition-shadow hover:shadow-lg">
             <Users className="h-8 w-8 text-accent" />
             <div className="mt-3 font-semibold text-primary">Clients</div>
-            <div className="text-sm text-muted-foreground">Add & track contractor clients</div>
+            <div className="text-sm text-muted-foreground">Contractor accounts</div>
           </Card>
         </Link>
-        <Link to="/dashboard/products">
+        <Link to="/dashboard/bundles">
           <Card className="p-6 transition-shadow hover:shadow-lg">
-            <Package className="h-8 w-8 text-accent" />
-            <div className="mt-3 font-semibold text-primary">Products</div>
-            <div className="text-sm text-muted-foreground">Inventory & pricing</div>
+            <Boxes className="h-8 w-8 text-accent" />
+            <div className="mt-3 font-semibold text-primary">Bundles</div>
+            <div className="text-sm text-muted-foreground">Pre-built kits</div>
           </Card>
         </Link>
       </div>
