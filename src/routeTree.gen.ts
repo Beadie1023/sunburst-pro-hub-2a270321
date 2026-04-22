@@ -12,11 +12,16 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as ProductsRouteImport } from './routes/products'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as DashboardRouteImport } from './routes/dashboard'
+import { Route as CalculatorRouteImport } from './routes/calculator'
+import { Route as BundlesRouteImport } from './routes/bundles'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as DashboardProductsRouteImport } from './routes/dashboard.products'
 import { Route as DashboardOrdersRouteImport } from './routes/dashboard.orders'
+import { Route as DashboardFollowupsRouteImport } from './routes/dashboard.followups'
 import { Route as DashboardClientsRouteImport } from './routes/dashboard.clients'
+import { Route as DashboardBundlesRouteImport } from './routes/dashboard.bundles'
 import { Route as DashboardOrdersNewRouteImport } from './routes/dashboard.orders.new'
+import { Route as DashboardOrdersOrderIdRouteImport } from './routes/dashboard.orders.$orderId'
 
 const ProductsRoute = ProductsRouteImport.update({
   id: '/products',
@@ -31,6 +36,16 @@ const LoginRoute = LoginRouteImport.update({
 const DashboardRoute = DashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CalculatorRoute = CalculatorRouteImport.update({
+  id: '/calculator',
+  path: '/calculator',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BundlesRoute = BundlesRouteImport.update({
+  id: '/bundles',
+  path: '/bundles',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -48,9 +63,19 @@ const DashboardOrdersRoute = DashboardOrdersRouteImport.update({
   path: '/orders',
   getParentRoute: () => DashboardRoute,
 } as any)
+const DashboardFollowupsRoute = DashboardFollowupsRouteImport.update({
+  id: '/followups',
+  path: '/followups',
+  getParentRoute: () => DashboardRoute,
+} as any)
 const DashboardClientsRoute = DashboardClientsRouteImport.update({
   id: '/clients',
   path: '/clients',
+  getParentRoute: () => DashboardRoute,
+} as any)
+const DashboardBundlesRoute = DashboardBundlesRouteImport.update({
+  id: '/bundles',
+  path: '/bundles',
   getParentRoute: () => DashboardRoute,
 } as any)
 const DashboardOrdersNewRoute = DashboardOrdersNewRouteImport.update({
@@ -58,73 +83,110 @@ const DashboardOrdersNewRoute = DashboardOrdersNewRouteImport.update({
   path: '/new',
   getParentRoute: () => DashboardOrdersRoute,
 } as any)
+const DashboardOrdersOrderIdRoute = DashboardOrdersOrderIdRouteImport.update({
+  id: '/$orderId',
+  path: '/$orderId',
+  getParentRoute: () => DashboardOrdersRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/bundles': typeof BundlesRoute
+  '/calculator': typeof CalculatorRoute
   '/dashboard': typeof DashboardRouteWithChildren
   '/login': typeof LoginRoute
   '/products': typeof ProductsRoute
+  '/dashboard/bundles': typeof DashboardBundlesRoute
   '/dashboard/clients': typeof DashboardClientsRoute
+  '/dashboard/followups': typeof DashboardFollowupsRoute
   '/dashboard/orders': typeof DashboardOrdersRouteWithChildren
   '/dashboard/products': typeof DashboardProductsRoute
+  '/dashboard/orders/$orderId': typeof DashboardOrdersOrderIdRoute
   '/dashboard/orders/new': typeof DashboardOrdersNewRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/bundles': typeof BundlesRoute
+  '/calculator': typeof CalculatorRoute
   '/dashboard': typeof DashboardRouteWithChildren
   '/login': typeof LoginRoute
   '/products': typeof ProductsRoute
+  '/dashboard/bundles': typeof DashboardBundlesRoute
   '/dashboard/clients': typeof DashboardClientsRoute
+  '/dashboard/followups': typeof DashboardFollowupsRoute
   '/dashboard/orders': typeof DashboardOrdersRouteWithChildren
   '/dashboard/products': typeof DashboardProductsRoute
+  '/dashboard/orders/$orderId': typeof DashboardOrdersOrderIdRoute
   '/dashboard/orders/new': typeof DashboardOrdersNewRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/bundles': typeof BundlesRoute
+  '/calculator': typeof CalculatorRoute
   '/dashboard': typeof DashboardRouteWithChildren
   '/login': typeof LoginRoute
   '/products': typeof ProductsRoute
+  '/dashboard/bundles': typeof DashboardBundlesRoute
   '/dashboard/clients': typeof DashboardClientsRoute
+  '/dashboard/followups': typeof DashboardFollowupsRoute
   '/dashboard/orders': typeof DashboardOrdersRouteWithChildren
   '/dashboard/products': typeof DashboardProductsRoute
+  '/dashboard/orders/$orderId': typeof DashboardOrdersOrderIdRoute
   '/dashboard/orders/new': typeof DashboardOrdersNewRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/bundles'
+    | '/calculator'
     | '/dashboard'
     | '/login'
     | '/products'
+    | '/dashboard/bundles'
     | '/dashboard/clients'
+    | '/dashboard/followups'
     | '/dashboard/orders'
     | '/dashboard/products'
+    | '/dashboard/orders/$orderId'
     | '/dashboard/orders/new'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/bundles'
+    | '/calculator'
     | '/dashboard'
     | '/login'
     | '/products'
+    | '/dashboard/bundles'
     | '/dashboard/clients'
+    | '/dashboard/followups'
     | '/dashboard/orders'
     | '/dashboard/products'
+    | '/dashboard/orders/$orderId'
     | '/dashboard/orders/new'
   id:
     | '__root__'
     | '/'
+    | '/bundles'
+    | '/calculator'
     | '/dashboard'
     | '/login'
     | '/products'
+    | '/dashboard/bundles'
     | '/dashboard/clients'
+    | '/dashboard/followups'
     | '/dashboard/orders'
     | '/dashboard/products'
+    | '/dashboard/orders/$orderId'
     | '/dashboard/orders/new'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  BundlesRoute: typeof BundlesRoute
+  CalculatorRoute: typeof CalculatorRoute
   DashboardRoute: typeof DashboardRouteWithChildren
   LoginRoute: typeof LoginRoute
   ProductsRoute: typeof ProductsRoute
@@ -153,6 +215,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/calculator': {
+      id: '/calculator'
+      path: '/calculator'
+      fullPath: '/calculator'
+      preLoaderRoute: typeof CalculatorRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/bundles': {
+      id: '/bundles'
+      path: '/bundles'
+      fullPath: '/bundles'
+      preLoaderRoute: typeof BundlesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -174,11 +250,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardOrdersRouteImport
       parentRoute: typeof DashboardRoute
     }
+    '/dashboard/followups': {
+      id: '/dashboard/followups'
+      path: '/followups'
+      fullPath: '/dashboard/followups'
+      preLoaderRoute: typeof DashboardFollowupsRouteImport
+      parentRoute: typeof DashboardRoute
+    }
     '/dashboard/clients': {
       id: '/dashboard/clients'
       path: '/clients'
       fullPath: '/dashboard/clients'
       preLoaderRoute: typeof DashboardClientsRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    '/dashboard/bundles': {
+      id: '/dashboard/bundles'
+      path: '/bundles'
+      fullPath: '/dashboard/bundles'
+      preLoaderRoute: typeof DashboardBundlesRouteImport
       parentRoute: typeof DashboardRoute
     }
     '/dashboard/orders/new': {
@@ -188,14 +278,23 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardOrdersNewRouteImport
       parentRoute: typeof DashboardOrdersRoute
     }
+    '/dashboard/orders/$orderId': {
+      id: '/dashboard/orders/$orderId'
+      path: '/$orderId'
+      fullPath: '/dashboard/orders/$orderId'
+      preLoaderRoute: typeof DashboardOrdersOrderIdRouteImport
+      parentRoute: typeof DashboardOrdersRoute
+    }
   }
 }
 
 interface DashboardOrdersRouteChildren {
+  DashboardOrdersOrderIdRoute: typeof DashboardOrdersOrderIdRoute
   DashboardOrdersNewRoute: typeof DashboardOrdersNewRoute
 }
 
 const DashboardOrdersRouteChildren: DashboardOrdersRouteChildren = {
+  DashboardOrdersOrderIdRoute: DashboardOrdersOrderIdRoute,
   DashboardOrdersNewRoute: DashboardOrdersNewRoute,
 }
 
@@ -204,13 +303,17 @@ const DashboardOrdersRouteWithChildren = DashboardOrdersRoute._addFileChildren(
 )
 
 interface DashboardRouteChildren {
+  DashboardBundlesRoute: typeof DashboardBundlesRoute
   DashboardClientsRoute: typeof DashboardClientsRoute
+  DashboardFollowupsRoute: typeof DashboardFollowupsRoute
   DashboardOrdersRoute: typeof DashboardOrdersRouteWithChildren
   DashboardProductsRoute: typeof DashboardProductsRoute
 }
 
 const DashboardRouteChildren: DashboardRouteChildren = {
+  DashboardBundlesRoute: DashboardBundlesRoute,
   DashboardClientsRoute: DashboardClientsRoute,
+  DashboardFollowupsRoute: DashboardFollowupsRoute,
   DashboardOrdersRoute: DashboardOrdersRouteWithChildren,
   DashboardProductsRoute: DashboardProductsRoute,
 }
@@ -221,6 +324,8 @@ const DashboardRouteWithChildren = DashboardRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  BundlesRoute: BundlesRoute,
+  CalculatorRoute: CalculatorRoute,
   DashboardRoute: DashboardRouteWithChildren,
   LoginRoute: LoginRoute,
   ProductsRoute: ProductsRoute,
