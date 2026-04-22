@@ -14,16 +14,209 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      clients: {
+        Row: {
+          address: string | null
+          company_name: string
+          contact_name: string | null
+          created_at: string
+          email: string | null
+          id: string
+          island: string | null
+          net30_approved: boolean | null
+          notes: string | null
+          phone: string | null
+        }
+        Insert: {
+          address?: string | null
+          company_name: string
+          contact_name?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          island?: string | null
+          net30_approved?: boolean | null
+          notes?: string | null
+          phone?: string | null
+        }
+        Update: {
+          address?: string | null
+          company_name?: string
+          contact_name?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          island?: string | null
+          net30_approved?: boolean | null
+          notes?: string | null
+          phone?: string | null
+        }
+        Relationships: []
+      }
+      orders: {
+        Row: {
+          client_id: string | null
+          created_at: string
+          delivery_address: string | null
+          delivery_method: string | null
+          id: string
+          items: Json
+          notes: string | null
+          order_number: string
+          payment_method: string | null
+          payment_status: string
+          status: string
+          subtotal: number
+          total: number
+        }
+        Insert: {
+          client_id?: string | null
+          created_at?: string
+          delivery_address?: string | null
+          delivery_method?: string | null
+          id?: string
+          items?: Json
+          notes?: string | null
+          order_number?: string
+          payment_method?: string | null
+          payment_status?: string
+          status?: string
+          subtotal?: number
+          total?: number
+        }
+        Update: {
+          client_id?: string | null
+          created_at?: string
+          delivery_address?: string | null
+          delivery_method?: string | null
+          id?: string
+          items?: Json
+          notes?: string | null
+          order_number?: string
+          payment_method?: string | null
+          payment_status?: string
+          status?: string
+          subtotal?: number
+          total?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "orders_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      products: {
+        Row: {
+          brand: string | null
+          category: string
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          price: number | null
+          sku: string
+          status: string
+          stock_quantity: number
+          supplier: string | null
+          unit: string
+        }
+        Insert: {
+          brand?: string | null
+          category: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          price?: number | null
+          sku: string
+          status?: string
+          stock_quantity?: number
+          supplier?: string | null
+          unit?: string
+        }
+        Update: {
+          brand?: string | null
+          category?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          price?: number | null
+          sku?: string
+          status?: string
+          stock_quantity?: number
+          supplier?: string | null
+          unit?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          approved: boolean
+          company_name: string | null
+          created_at: string
+          email: string
+          full_name: string | null
+          id: string
+          phone: string | null
+        }
+        Insert: {
+          approved?: boolean
+          company_name?: string | null
+          created_at?: string
+          email: string
+          full_name?: string | null
+          id: string
+          phone?: string | null
+        }
+        Update: {
+          approved?: boolean
+          company_name?: string | null
+          created_at?: string
+          email?: string
+          full_name?: string | null
+          id?: string
+          phone?: string | null
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "contractor" | "pending"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +343,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "contractor", "pending"],
+    },
   },
 } as const
