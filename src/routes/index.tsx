@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { Header } from "@/components/Header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Truck, ShieldCheck, Sun, Package, Phone, MapPin } from "lucide-react";
+import { Truck, ShieldCheck, Sun, Package, Phone, MapPin, Calculator } from "lucide-react";
 
 export const Route = createFileRoute("/")({
   component: Landing,
@@ -40,7 +40,7 @@ function Landing() {
                 <Link to="/products">Start Your Next Job</Link>
               </Button>
               <Button asChild size="lg" variant="outline" className="h-14 border-primary-foreground/30 bg-primary-foreground/10 text-primary-foreground hover:bg-primary-foreground/20">
-                <Link to="/login">Contractor Login</Link>
+                <Link to="/calculator"><Calculator className="mr-2 h-4 w-4" /> Paint Calculator</Link>
               </Button>
             </div>
           </div>
@@ -79,7 +79,7 @@ function Landing() {
               <p className="mt-2 text-muted-foreground">Pre-built kits to keep crews moving.</p>
             </div>
             <Button asChild variant="link" className="text-accent">
-              <Link to="/products">View all →</Link>
+              <Link to="/bundles">View all →</Link>
             </Button>
           </div>
           <div className="mt-8 grid gap-6 md:grid-cols-3">

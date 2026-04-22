@@ -3,7 +3,7 @@ import { useEffect } from "react";
 import { Header } from "@/components/Header";
 import { useAuth } from "@/lib/auth";
 import { Card } from "@/components/ui/card";
-import { Loader2, Package, Users, ClipboardList, LayoutDashboard } from "lucide-react";
+import { Loader2, Package, Users, ClipboardList, LayoutDashboard, Boxes, PhoneCall } from "lucide-react";
 
 export const Route = createFileRoute("/dashboard")({
   component: DashboardLayout,
@@ -46,8 +46,10 @@ function DashboardLayout() {
   const nav = [
     { to: "/dashboard", label: "Overview", icon: LayoutDashboard, exact: true },
     { to: "/dashboard/orders", label: "Orders", icon: ClipboardList },
+    { to: "/dashboard/followups", label: "Follow-Ups", icon: PhoneCall },
     { to: "/dashboard/clients", label: "Clients", icon: Users },
     { to: "/dashboard/products", label: "Products", icon: Package },
+    { to: "/dashboard/bundles", label: "Bundles", icon: Boxes },
   ];
 
   const isOverview = loc.pathname === "/dashboard" || loc.pathname === "/dashboard/";
@@ -93,7 +95,7 @@ function Overview() {
           {user?.email} · <span className="font-semibold uppercase text-accent">{role}</span>
         </p>
       </div>
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Link to="/dashboard/orders">
           <Card className="p-6 transition-shadow hover:shadow-lg">
             <ClipboardList className="h-8 w-8 text-accent" />
@@ -101,18 +103,25 @@ function Overview() {
             <div className="text-sm text-muted-foreground">View and manage orders</div>
           </Card>
         </Link>
+        <Link to="/dashboard/followups">
+          <Card className="p-6 transition-shadow hover:shadow-lg">
+            <PhoneCall className="h-8 w-8 text-accent" />
+            <div className="mt-3 font-semibold text-primary">Follow-Ups</div>
+            <div className="text-sm text-muted-foreground">CRM reminders & calls</div>
+          </Card>
+        </Link>
         <Link to="/dashboard/clients">
           <Card className="p-6 transition-shadow hover:shadow-lg">
             <Users className="h-8 w-8 text-accent" />
             <div className="mt-3 font-semibold text-primary">Clients</div>
-            <div className="text-sm text-muted-foreground">Add & track contractor clients</div>
+            <div className="text-sm text-muted-foreground">Contractor accounts</div>
           </Card>
         </Link>
-        <Link to="/dashboard/products">
+        <Link to="/dashboard/bundles">
           <Card className="p-6 transition-shadow hover:shadow-lg">
-            <Package className="h-8 w-8 text-accent" />
-            <div className="mt-3 font-semibold text-primary">Products</div>
-            <div className="text-sm text-muted-foreground">Inventory & pricing</div>
+            <Boxes className="h-8 w-8 text-accent" />
+            <div className="mt-3 font-semibold text-primary">Bundles</div>
+            <div className="text-sm text-muted-foreground">Pre-built kits</div>
           </Card>
         </Link>
       </div>
