@@ -42,6 +42,8 @@
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
@@ -62,26 +64,35 @@
 }
 
 :root {
-  --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.129 0.042 264.695);
+  --radius: 0.5rem;
+  /* Sunburst Paints — industrial contractor theme */
+  --background: oklch(0.99 0.005 250);
+  --foreground: oklch(0.18 0.06 260);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.129 0.042 264.695);
+  --card-foreground: oklch(0.18 0.06 260);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.129 0.042 264.695);
-  --primary: oklch(0.208 0.042 265.755);
-  --primary-foreground: oklch(0.984 0.003 247.858);
-  --secondary: oklch(0.968 0.007 247.896);
-  --secondary-foreground: oklch(0.208 0.042 265.755);
-  --muted: oklch(0.968 0.007 247.896);
-  --muted-foreground: oklch(0.554 0.046 257.417);
-  --accent: oklch(0.968 0.007 247.896);
-  --accent-foreground: oklch(0.208 0.042 265.755);
-  --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.984 0.003 247.858);
-  --border: oklch(0.929 0.013 255.508);
-  --input: oklch(0.929 0.013 255.508);
-  --ring: oklch(0.704 0.04 256.788);
+  --popover-foreground: oklch(0.18 0.06 260);
+  /* Deep Navy #002147 */
+  --primary: oklch(0.24 0.09 258);
+  --primary-foreground: oklch(0.99 0 0);
+  --primary-glow: oklch(0.32 0.11 258);
+  /* Safety Orange #FF6700 */
+  --accent: oklch(0.7 0.21 45);
+  --accent-foreground: oklch(1 0 0);
+  --secondary: oklch(0.96 0.01 250);
+  --secondary-foreground: oklch(0.24 0.09 258);
+  --muted: oklch(0.95 0.01 250);
+  --muted-foreground: oklch(0.45 0.03 258);
+  --destructive: oklch(0.6 0.24 27);
+  --destructive-foreground: oklch(0.99 0 0);
+  --success: oklch(0.62 0.16 150);
+  --warning: oklch(0.78 0.18 75);
+  --border: oklch(0.9 0.01 255);
+  --input: oklch(0.92 0.01 255);
+  --ring: oklch(0.7 0.21 45);
+  --gradient-hero: linear-gradient(135deg, oklch(0.18 0.08 258), oklch(0.28 0.1 258));
+  --gradient-accent: linear-gradient(135deg, oklch(0.7 0.21 45), oklch(0.64 0.22 35));
+  --shadow-pro: 0 10px 40px -10px oklch(0.24 0.09 258 / 0.35);
   --chart-1: oklch(0.646 0.222 41.116);
   --chart-2: oklch(0.6 0.118 184.704);
   --chart-3: oklch(0.398 0.07 227.392);
