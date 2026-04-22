@@ -27,6 +27,12 @@ export function Header() {
           <Link to="/products" className="text-foreground hover:text-accent">
             Products
           </Link>
+          <Link to="/bundles" className="text-foreground hover:text-accent">
+            Bundles
+          </Link>
+          <Link to="/calculator" className="text-foreground hover:text-accent">
+            Calculator
+          </Link>
           {user && (
             <Link to="/dashboard" className="text-foreground hover:text-accent">
               Dashboard

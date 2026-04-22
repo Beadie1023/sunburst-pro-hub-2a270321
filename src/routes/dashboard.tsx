@@ -3,7 +3,7 @@ import { useEffect } from "react";
 import { Header } from "@/components/Header";
 import { useAuth } from "@/lib/auth";
 import { Card } from "@/components/ui/card";
-import { Loader2, Package, Users, ClipboardList, LayoutDashboard } from "lucide-react";
+import { Loader2, Package, Users, ClipboardList, LayoutDashboard, Boxes, PhoneCall } from "lucide-react";
 
 export const Route = createFileRoute("/dashboard")({
   component: DashboardLayout,
@@ -46,8 +46,10 @@ function DashboardLayout() {
   const nav = [
     { to: "/dashboard", label: "Overview", icon: LayoutDashboard, exact: true },
     { to: "/dashboard/orders", label: "Orders", icon: ClipboardList },
+    { to: "/dashboard/followups", label: "Follow-Ups", icon: PhoneCall },
     { to: "/dashboard/clients", label: "Clients", icon: Users },
     { to: "/dashboard/products", label: "Products", icon: Package },
+    { to: "/dashboard/bundles", label: "Bundles", icon: Boxes },
   ];
 
   const isOverview = loc.pathname === "/dashboard" || loc.pathname === "/dashboard/";

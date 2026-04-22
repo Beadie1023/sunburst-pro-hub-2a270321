@@ -79,8 +79,8 @@ function OrdersPage() {
             </TableHeader>
             <TableBody>
               {orders.map((o) => (
-                <TableRow key={o.id}>
-                  <TableCell className="font-mono text-sm font-semibold">{o.order_number}</TableCell>
+                <TableRow key={o.id} className="cursor-pointer hover:bg-muted/50" onClick={() => (window.location.href = `/dashboard/orders/${o.id}`)}>
+                  <TableCell className="font-mono text-sm font-semibold text-accent">{o.order_number}</TableCell>
                   <TableCell>{o.clients?.company_name ?? "—"}</TableCell>
                   <TableCell>
                     <Badge variant={o.status === "completed" ? "default" : "secondary"}>
