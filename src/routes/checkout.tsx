@@ -1,0 +1,161 @@
+import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
+import { useState } from "react";
+import { Header } from "@/components/Header";
+import { useCart } from "@/lib/cart";
+import { useAuth } from "@/lib/auth";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { toast } from "sonner";
+import { placeOrder } from "@/lib/orders.functions";
+import { Loader2 } from "lucide-react";
+
+export const Route = createFileRoute("/checkout")({
+  component: CheckoutPage,
+  head: () => ({ meta: [{ title: "Checkout | Sunburst Paints" }] }),
+});
+
+function CheckoutPage() {
+  const { items, subtotal, clearCart } = useCart();
+  const { user, role } = useAuth();
+  const navigate = useNavigate();
+  const [submitting, setSubmitting] = useState(false);
+  const [delivery, setDelivery] = useState<"nassau" | "mailboat" | "pickup">("nassau");
+  const [payment, setPayment] = useState<"bank_transfer" | "cod" | "net30">("bank_transfer");
+  const isContractor = role === "contractor" || role === "admin";
+
+  if (items.length === 0) {
+    return (
+      <div className="min-h-screen bg-secondary">
+        <Header />
+        <div className="container mx-auto max-w-xl px-4 py-16 text-center">
+          <p className="text-muted-foreground">Your cart is empty.</p>
+          <Button asChild className="mt-4 bg-accent text-accent-foreground hover:bg-accent/90">
+            <Link to="/products">Browse Products</Link>
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget);
+    setSubmitting(true);
+    try {
+      const res = await placeOrder({
+        data: {
+          user_id: user?.id ?? null,
+          contact_name: String(fd.get("contact_name") ?? ""),
+          company: String(fd.get("company") ?? ""),
+          phone: String(fd.get("phone") ?? ""),
+          email: String(fd.get("email") ?? ""),
+          delivery_method: delivery,
+          delivery_address: String(fd.get("delivery_address") ?? ""),
+          payment_method: payment,
+          notes: String(fd.get("notes") ?? ""),
+          items: items.map((i) => ({ product_id: i.product_id, quantity: i.quantity })),
+        },
+      });
+      clearCart();
+      navigate({ to: "/order-confirmation/$orderId", params: { orderId: res.order_id } });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to place order";
+      toast.error(msg);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-secondary">
+      <Header />
+      <div className="container mx-auto max-w-5xl px-4 py-10">
+        <h1 className="text-3xl font-bold text-primary">Checkout</h1>
+        {isContractor && (
+          <div className="mt-2 inline-flex items-center gap-2 rounded-md bg-accent/10 px-3 py-1 text-sm font-semibold text-accent">
+            Pro Pricing Applied · 10% off
+          </div>
+        )}
+
+        <form onSubmit={onSubmit} className="mt-6 grid gap-6 lg:grid-cols-3">
+          <div className="space-y-6 lg:col-span-2">
+            <Card className="p-6">
+              <h2 className="font-bold text-primary">Contact</h2>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <div><Label>Name</Label><Input name="contact_name" required maxLength={100} /></div>
+                <div><Label>Company</Label><Input name="company" required maxLength={120} /></div>
+                <div><Label>Phone</Label><Input name="phone" required maxLength={40} /></div>
+                <div><Label>Email</Label><Input name="email" type="email" required maxLength={160} defaultValue={user?.email ?? ""} /></div>
+              </div>
+            </Card>
+
+            <Card className="p-6">
+              <h2 className="font-bold text-primary">Delivery</h2>
+              <RadioGroup value={delivery} onValueChange={(v) => setDelivery(v as typeof delivery)} className="mt-4 grid gap-2">
+                <label className="flex cursor-pointer items-center gap-2 rounded border border-border p-3 hover:bg-secondary">
+                  <RadioGroupItem value="nassau" /> <span>Nassau Job Site Delivery</span>
+                </label>
+                <label className="flex cursor-pointer items-center gap-2 rounded border border-border p-3 hover:bg-secondary">
+                  <RadioGroupItem value="mailboat" /> <span>Mailboat (Exuma, Abaco, Eleuthera)</span>
+                </label>
+                <label className="flex cursor-pointer items-center gap-2 rounded border border-border p-3 hover:bg-secondary">
+                  <RadioGroupItem value="pickup" /> <span>Pickup at Nassau Warehouse</span>
+                </label>
+              </RadioGroup>
+              {delivery !== "pickup" && (
+                <div className="mt-4">
+                  <Label>Delivery Address / Mailboat dock</Label>
+                  <Textarea name="delivery_address" rows={2} maxLength={400} />
+                </div>
+              )}
+            </Card>
+
+            <Card className="p-6">
+              <h2 className="font-bold text-primary">Payment</h2>
+              <RadioGroup value={payment} onValueChange={(v) => setPayment(v as typeof payment)} className="mt-4 grid gap-2">
+                <label className="flex cursor-pointer items-center gap-2 rounded border border-border p-3 hover:bg-secondary">
+                  <RadioGroupItem value="bank_transfer" /> <span>Bank Transfer</span>
+                </label>
+                <label className="flex cursor-pointer items-center gap-2 rounded border border-border p-3 hover:bg-secondary">
+                  <RadioGroupItem value="cod" /> <span>Cash on Delivery</span>
+                </label>
+                <label className={`flex items-center gap-2 rounded border border-border p-3 ${isContractor ? "cursor-pointer hover:bg-secondary" : "opacity-50"}`}>
+                  <RadioGroupItem value="net30" disabled={!isContractor} />
+                  <span>Net-30 {isContractor ? "" : "(contractors only)"}</span>
+                </label>
+              </RadioGroup>
+              <div className="mt-4">
+                <Label>Notes (optional)</Label>
+                <Textarea name="notes" rows={2} maxLength={1000} placeholder="Job site contact, gate code, etc." />
+              </div>
+            </Card>
+          </div>
+
+          <Card className="h-fit p-6 lg:sticky lg:top-20">
+            <h2 className="font-bold text-primary">Order Summary</h2>
+            <ul className="mt-3 space-y-2 text-sm">
+              {items.map((i) => (
+                <li key={i.product_id} className="flex justify-between gap-2">
+                  <span className="truncate">{i.name} <span className="text-muted-foreground">×{i.quantity}</span></span>
+                  <span className="shrink-0">${(i.price * i.quantity).toFixed(2)}</span>
+                </li>
+              ))}
+            </ul>
+            <div className="mt-4 flex items-center justify-between border-t border-border pt-3 text-lg">
+              <span className="font-semibold">Estimated Total</span>
+              <span className="font-bold text-primary">${subtotal.toFixed(2)}</span>
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">Server recalculates from live prices.</p>
+            <Button type="submit" disabled={submitting} className="mt-4 w-full bg-accent text-accent-foreground hover:bg-accent/90">
+              {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Place Order"}
+            </Button>
+          </Card>
+        </form>
+      </div>
+    </div>
+  );
+}
