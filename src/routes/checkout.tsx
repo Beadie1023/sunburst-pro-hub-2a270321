@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { toast } from "sonner";
 import { placeOrder } from "@/lib/orders.functions";
+import { computeTotals, VAT_RATE } from "@/lib/tax";
 import { Loader2 } from "lucide-react";
 
 export const Route = createFileRoute("/checkout")({
@@ -145,11 +146,20 @@ function CheckoutPage() {
                 </li>
               ))}
             </ul>
-            <div className="mt-4 flex items-center justify-between border-t border-border pt-3 text-lg">
-              <span className="font-semibold">Estimated Total</span>
-              <span className="font-bold text-primary">${subtotal.toFixed(2)}</span>
-            </div>
-            <p className="mt-1 text-xs text-muted-foreground">Server recalculates from live prices.</p>
+            {(() => {
+              const t = computeTotals(subtotal);
+              return (
+                <div className="mt-4 space-y-1.5 border-t border-border pt-3 text-sm">
+                  <div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span>${t.subtotal.toFixed(2)}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">VAT ({(VAT_RATE * 100).toFixed(0)}%)</span><span>${t.vat.toFixed(2)}</span></div>
+                  <div className="mt-1 flex items-center justify-between border-t border-border pt-2 text-lg">
+                    <span className="font-semibold">Total</span>
+                    <span className="font-bold text-primary">${t.total.toFixed(2)}</span>
+                  </div>
+                </div>
+              );
+            })()}
+            <p className="mt-1 text-xs text-muted-foreground">Includes 10% VAT. Server recalculates from live prices.</p>
             <Button type="submit" disabled={submitting} className="mt-4 w-full bg-accent text-accent-foreground hover:bg-accent/90">
               {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Place Order"}
             </Button>
