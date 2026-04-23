@@ -14,36 +14,81 @@ export type Database = {
   }
   public: {
     Tables: {
+      bundle_items: {
+        Row: {
+          bundle_id: string
+          created_at: string
+          id: string
+          product_id: string
+          quantity: number
+        }
+        Insert: {
+          bundle_id: string
+          created_at?: string
+          id?: string
+          product_id: string
+          quantity?: number
+        }
+        Update: {
+          bundle_id?: string
+          created_at?: string
+          id?: string
+          product_id?: string
+          quantity?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bundle_items_bundle_id_fkey"
+            columns: ["bundle_id"]
+            isOneToOne: false
+            referencedRelation: "bundles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bundle_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bundles: {
         Row: {
           active: boolean
           category: string
           created_at: string
           description: string | null
+          discount_pct: number
           id: string
           items: Json
           name: string
           price: number | null
+          subtotal: number | null
         }
         Insert: {
           active?: boolean
           category?: string
           created_at?: string
           description?: string | null
+          discount_pct?: number
           id?: string
           items?: Json
           name: string
           price?: number | null
+          subtotal?: number | null
         }
         Update: {
           active?: boolean
           category?: string
           created_at?: string
           description?: string | null
+          discount_pct?: number
           id?: string
           items?: Json
           name?: string
           price?: number | null
+          subtotal?: number | null
         }
         Relationships: []
       }
@@ -225,11 +270,13 @@ export type Database = {
         Row: {
           brand: string | null
           category: string
+          contractor_price: number | null
           created_at: string
           description: string | null
           id: string
           name: string
           price: number | null
+          retail_price: number | null
           sku: string
           status: string
           stock_quantity: number
@@ -239,11 +286,13 @@ export type Database = {
         Insert: {
           brand?: string | null
           category: string
+          contractor_price?: number | null
           created_at?: string
           description?: string | null
           id?: string
           name: string
           price?: number | null
+          retail_price?: number | null
           sku: string
           status?: string
           stock_quantity?: number
@@ -253,11 +302,13 @@ export type Database = {
         Update: {
           brand?: string | null
           category?: string
+          contractor_price?: number | null
           created_at?: string
           description?: string | null
           id?: string
           name?: string
           price?: number | null
+          retail_price?: number | null
           sku?: string
           status?: string
           stock_quantity?: number
