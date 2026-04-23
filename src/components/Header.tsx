@@ -1,10 +1,12 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useAuth } from "@/lib/auth";
+import { useCart } from "@/lib/cart";
 import { Button } from "@/components/ui/button";
-import { Sun } from "lucide-react";
+import { ShoppingCart, Sun } from "lucide-react";
 
 export function Header() {
   const { user, role, signOut } = useAuth();
+  const { itemCount } = useCart();
   const navigate = useNavigate();
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur">
@@ -40,6 +42,19 @@ export function Header() {
           )}
         </nav>
         <div className="flex items-center gap-2">
+          <Link
+            to="/cart"
+            className="relative inline-flex h-9 items-center gap-1.5 rounded-md border border-border bg-background px-3 text-sm font-medium text-foreground hover:bg-secondary"
+            aria-label="Cart"
+          >
+            <ShoppingCart className="h-4 w-4" />
+            <span className="hidden sm:inline">Cart</span>
+            {itemCount > 0 && (
+              <span className="ml-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-accent px-1.5 text-xs font-bold text-accent-foreground">
+                {itemCount}
+              </span>
+            )}
+          </Link>
           {user ? (
             <>
               {role === "pending" && (
