@@ -14,6 +14,8 @@ export const Route = createFileRoute("/order-confirmation/$orderId")({
 interface OrderItem { name: string; quantity: number; line_total: number; }
 interface Order {
   order_number: string;
+  subtotal: number;
+  vat_amount: number;
   total: number;
   payment_method: string | null;
   delivery_method: string | null;
@@ -31,7 +33,7 @@ function ConfirmationPage() {
   useEffect(() => {
     supabase
       .from("orders")
-      .select("order_number, total, payment_method, delivery_method, delivery_address, items, clients(company_name)")
+      .select("order_number, subtotal, vat_amount, total, payment_method, delivery_method, delivery_address, items, clients(company_name)")
       .eq("id", orderId)
       .single()
       .then(({ data }) => {
@@ -62,7 +64,7 @@ function ConfirmationPage() {
   }
 
   const itemList = order.items.map((i) => `• ${i.name} ×${i.quantity}`).join("\n");
-  const message = `Order Request — ${order.order_number}\n\nItems:\n${itemList}\n\nTotal: $${Number(order.total).toFixed(2)}\nDelivery: ${order.delivery_method ?? "—"}\nPayment: ${order.payment_method ?? "—"}`;
+  const message = `Order Request — ${order.order_number}\n\nItems:\n${itemList}\n\nSubtotal: $${Number(order.subtotal ?? 0).toFixed(2)}\nVAT (10%): $${Number(order.vat_amount ?? 0).toFixed(2)}\nTotal: $${Number(order.total).toFixed(2)} (incl. VAT)\nDelivery: ${order.delivery_method ?? "—"}\nPayment: ${order.payment_method ?? "—"}`;
   const waUrl = `https://wa.me/${SUNBURST_WHATSAPP}?text=${encodeURIComponent(message)}`;
 
   return (
@@ -75,8 +77,10 @@ function ConfirmationPage() {
           <p className="mt-1 text-muted-foreground">Reference</p>
           <p className="text-2xl font-mono font-bold text-accent">{order.order_number}</p>
           <div className="mt-6 rounded-md bg-secondary p-4 text-left text-sm">
-            <div className="flex justify-between"><span>Total</span><span className="font-bold">${Number(order.total).toFixed(2)}</span></div>
-            <div className="mt-1 flex justify-between"><span>Delivery</span><span className="capitalize">{order.delivery_method?.replace("_", " ")}</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span>${Number(order.subtotal ?? 0).toFixed(2)}</span></div>
+            <div className="mt-1 flex justify-between"><span className="text-muted-foreground">VAT (10%)</span><span>${Number(order.vat_amount ?? 0).toFixed(2)}</span></div>
+            <div className="mt-2 flex justify-between border-t border-border pt-2 text-base"><span className="font-semibold">Total</span><span className="font-bold">${Number(order.total).toFixed(2)}</span></div>
+            <div className="mt-2 flex justify-between"><span>Delivery</span><span className="capitalize">{order.delivery_method?.replace("_", " ")}</span></div>
             <div className="mt-1 flex justify-between"><span>Payment</span><span className="capitalize">{order.payment_method?.replace("_", " ")}</span></div>
           </div>
 

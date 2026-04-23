@@ -57,8 +57,10 @@ export const placeOrder = createServerFn({ method: "POST" })
       };
     });
 
+    const VAT_RATE = 0.10;
     const subtotal = Math.round(orderItems.reduce((s, i) => s + i.line_total, 0) * 100) / 100;
-    const total = subtotal; // tax/shipping can be added later
+    const vat_amount = Math.round(subtotal * VAT_RATE * 100) / 100;
+    const total = Math.round((subtotal + vat_amount) * 100) / 100;
 
     // Try to link to existing client by email/company (best effort)
     let client_id: string | null = null;
@@ -89,6 +91,8 @@ export const placeOrder = createServerFn({ method: "POST" })
         client_id,
         items: orderItems,
         subtotal,
+        vat_amount,
+        vat_rate: VAT_RATE,
         total,
         status: "pending",
         payment_status: "unpaid",
@@ -97,7 +101,7 @@ export const placeOrder = createServerFn({ method: "POST" })
         delivery_address: data.delivery_address || null,
         notes: data.notes || null,
       })
-      .select("id, order_number, total")
+      .select("id, order_number, subtotal, vat_amount, total")
       .single();
     if (oErr) throw new Error(oErr.message);
 
@@ -110,6 +114,8 @@ export const placeOrder = createServerFn({ method: "POST" })
     return {
       order_id: order.id,
       order_number: order.order_number,
+      subtotal: Number(order.subtotal),
+      vat_amount: Number(order.vat_amount),
       total: Number(order.total),
       isContractor,
     };

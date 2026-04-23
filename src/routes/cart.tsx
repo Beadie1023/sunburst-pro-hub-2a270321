@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { Header } from "@/components/Header";
 import { useCart } from "@/lib/cart";
 import { useAuth } from "@/lib/auth";
+import { computeTotals, VAT_RATE } from "@/lib/tax";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -67,12 +68,21 @@ function CartPage() {
             </Card>
 
             <Card className="mt-6 p-6">
-              <div className="flex items-center justify-between text-lg">
-                <span className="font-semibold">Subtotal</span>
-                <span className="font-bold text-primary">${subtotal.toFixed(2)}</span>
-              </div>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Final total recalculated server-side at checkout using current database prices.
+              {(() => {
+                const t = computeTotals(subtotal);
+                return (
+                  <div className="space-y-1.5 text-sm">
+                    <div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span>${t.subtotal.toFixed(2)}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">VAT ({(VAT_RATE * 100).toFixed(0)}%)</span><span>${t.vat.toFixed(2)}</span></div>
+                    <div className="mt-2 flex items-center justify-between border-t border-border pt-2 text-lg">
+                      <span className="font-semibold">Total</span>
+                      <span className="font-bold text-primary">${t.total.toFixed(2)}</span>
+                    </div>
+                  </div>
+                );
+              })()}
+              <p className="mt-2 text-xs text-muted-foreground">
+                Includes 10% VAT. Final total recalculated server-side using current database prices.
               </p>
               <Button asChild className="mt-4 w-full bg-accent text-accent-foreground hover:bg-accent/90">
                 <Link to="/checkout">Proceed to Checkout</Link>

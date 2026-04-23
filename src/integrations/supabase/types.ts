@@ -225,6 +225,8 @@ export type Database = {
           status: string
           subtotal: number
           total: number
+          vat_amount: number
+          vat_rate: number
         }
         Insert: {
           client_id?: string | null
@@ -240,6 +242,8 @@ export type Database = {
           status?: string
           subtotal?: number
           total?: number
+          vat_amount?: number
+          vat_rate?: number
         }
         Update: {
           client_id?: string | null
@@ -255,6 +259,8 @@ export type Database = {
           status?: string
           subtotal?: number
           total?: number
+          vat_amount?: number
+          vat_rate?: number
         }
         Relationships: [
           {
