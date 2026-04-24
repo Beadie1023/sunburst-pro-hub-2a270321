@@ -2,6 +2,20 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
+export const getOrder = createServerFn({ method: "GET" })
+  .inputValidator((input: unknown) => z.object({ orderId: z.string().uuid() }).parse(input))
+  .handler(async ({ data }) => {
+    const { data: order, error } = await supabaseAdmin
+      .from("orders")
+      .select("order_number, subtotal, vat_amount, total, payment_method, delivery_method, delivery_address, items")
+      .eq("id", data.orderId)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!order) throw new Error("Order not found");
+    return order;
+  });
+
+
 const ItemSchema = z.object({
   product_id: z.string().uuid(),
   quantity: z.number().int().min(1).max(999),
