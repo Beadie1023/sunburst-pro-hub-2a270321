@@ -12,6 +12,13 @@ export const Route = createFileRoute("/dashboard/orders/$orderId")({
   component: OrderDetail,
 });
 
+interface OrderItem {
+  name: string;
+  quantity: number;
+  unit_price?: number;
+  line_total?: number;
+}
+
 interface Order {
   id: string;
   order_number: string;
@@ -23,6 +30,8 @@ interface Order {
   notes: string | null;
   total: number;
   subtotal: number;
+  vat_amount: number;
+  items: OrderItem[];
   created_at: string;
   client_id: string | null;
   clients: { company_name: string; phone: string | null; email: string | null } | null;
