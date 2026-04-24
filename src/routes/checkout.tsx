@@ -20,13 +20,34 @@ export const Route = createFileRoute("/checkout")({
 });
 
 function CheckoutPage() {
-  const { items, subtotal, clearCart } = useCart();
+  const { items, subtotal, clearCart, hydrated } = useCart();
   const { user, role } = useAuth();
   const navigate = useNavigate();
   const [submitting, setSubmitting] = useState(false);
   const [delivery, setDelivery] = useState<"nassau" | "mailboat" | "pickup">("nassau");
   const [payment, setPayment] = useState<"bank_transfer" | "cod" | "net30">("bank_transfer");
   const isContractor = role === "contractor" || role === "admin";
+
+  // Controlled form fields for clean validation
+  const [contactName, setContactName] = useState("");
+  const [company, setCompany] = useState("");
+  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState(user?.email ?? "");
+  const [deliveryAddress, setDeliveryAddress] = useState("");
+  const [notes, setNotes] = useState("");
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // Wait for cart to hydrate from localStorage before rendering empty state
+  if (!hydrated) {
+    return (
+      <div className="min-h-screen bg-secondary">
+        <Header />
+        <div className="container mx-auto max-w-xl px-4 py-16 text-center">
+          <Loader2 className="mx-auto h-6 w-6 animate-spin text-muted-foreground" />
+        </div>
+      </div>
+    );
+  }
 
   if (items.length === 0) {
     return (
@@ -42,22 +63,43 @@ function CheckoutPage() {
     );
   }
 
+  const validate = () => {
+    const e: Record<string, string> = {};
+    if (!contactName.trim()) e.contact_name = "Name is required";
+    if (!company.trim()) e.company = "Company is required";
+    if (!phone.trim() || phone.trim().length < 5) e.phone = "Valid phone is required";
+    if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) e.email = "Valid email is required";
+    if (delivery !== "pickup" && !deliveryAddress.trim()) e.delivery_address = "Delivery address is required";
+    setErrors(e);
+    return Object.keys(e).length === 0;
+  };
+
   const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const fd = new FormData(e.currentTarget);
+
+    if (items.length === 0) {
+      toast.error("Your cart is empty.");
+      return;
+    }
+    if (!validate()) {
+      toast.error("Please complete all required fields");
+      return;
+    }
+
+    console.log("Submitting cart:", items);
     setSubmitting(true);
     try {
       const res = await placeOrder({
         data: {
           user_id: user?.id ?? null,
-          contact_name: String(fd.get("contact_name") ?? ""),
-          company: String(fd.get("company") ?? ""),
-          phone: String(fd.get("phone") ?? ""),
-          email: String(fd.get("email") ?? ""),
+          contact_name: contactName.trim(),
+          company: company.trim(),
+          phone: phone.trim(),
+          email: email.trim(),
           delivery_method: delivery,
-          delivery_address: String(fd.get("delivery_address") ?? ""),
+          delivery_address: deliveryAddress.trim(),
           payment_method: payment,
-          notes: String(fd.get("notes") ?? ""),
+          notes: notes.trim(),
           items: items.map((i) => ({ product_id: i.product_id, quantity: i.quantity })),
         },
       });
@@ -71,6 +113,13 @@ function CheckoutPage() {
     }
   };
 
+  const formInvalid =
+    !contactName.trim() ||
+    !company.trim() ||
+    !phone.trim() ||
+    !email.trim() ||
+    (delivery !== "pickup" && !deliveryAddress.trim());
+
   return (
     <div className="min-h-screen bg-secondary">
       <Header />
@@ -82,15 +131,31 @@ function CheckoutPage() {
           </div>
         )}
 
-        <form onSubmit={onSubmit} className="mt-6 grid gap-6 lg:grid-cols-3">
+        <form onSubmit={onSubmit} noValidate className="mt-6 grid gap-6 lg:grid-cols-3">
           <div className="space-y-6 lg:col-span-2">
             <Card className="p-6">
               <h2 className="font-bold text-primary">Contact</h2>
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                <div><Label>Name</Label><Input name="contact_name" required maxLength={100} /></div>
-                <div><Label>Company</Label><Input name="company" required maxLength={120} /></div>
-                <div><Label>Phone</Label><Input name="phone" required maxLength={40} /></div>
-                <div><Label>Email</Label><Input name="email" type="email" required maxLength={160} defaultValue={user?.email ?? ""} /></div>
+                <div>
+                  <Label>Name *</Label>
+                  <Input value={contactName} onChange={(e) => setContactName(e.target.value)} maxLength={100} aria-invalid={!!errors.contact_name} />
+                  {errors.contact_name && <p className="mt-1 text-xs text-destructive">{errors.contact_name}</p>}
+                </div>
+                <div>
+                  <Label>Company *</Label>
+                  <Input value={company} onChange={(e) => setCompany(e.target.value)} maxLength={120} aria-invalid={!!errors.company} />
+                  {errors.company && <p className="mt-1 text-xs text-destructive">{errors.company}</p>}
+                </div>
+                <div>
+                  <Label>Phone *</Label>
+                  <Input value={phone} onChange={(e) => setPhone(e.target.value)} maxLength={40} aria-invalid={!!errors.phone} />
+                  {errors.phone && <p className="mt-1 text-xs text-destructive">{errors.phone}</p>}
+                </div>
+                <div>
+                  <Label>Email *</Label>
+                  <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} maxLength={160} aria-invalid={!!errors.email} />
+                  {errors.email && <p className="mt-1 text-xs text-destructive">{errors.email}</p>}
+                </div>
               </div>
             </Card>
 
@@ -109,8 +174,9 @@ function CheckoutPage() {
               </RadioGroup>
               {delivery !== "pickup" && (
                 <div className="mt-4">
-                  <Label>Delivery Address / Mailboat dock</Label>
-                  <Textarea name="delivery_address" rows={2} maxLength={400} />
+                  <Label>Delivery Address / Mailboat dock *</Label>
+                  <Textarea value={deliveryAddress} onChange={(e) => setDeliveryAddress(e.target.value)} rows={2} maxLength={400} aria-invalid={!!errors.delivery_address} />
+                  {errors.delivery_address && <p className="mt-1 text-xs text-destructive">{errors.delivery_address}</p>}
                 </div>
               )}
             </Card>
@@ -131,7 +197,7 @@ function CheckoutPage() {
               </RadioGroup>
               <div className="mt-4">
                 <Label>Notes (optional)</Label>
-                <Textarea name="notes" rows={2} maxLength={1000} placeholder="Job site contact, gate code, etc." />
+                <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} maxLength={1000} placeholder="Job site contact, gate code, etc." />
               </div>
             </Card>
           </div>
@@ -160,7 +226,11 @@ function CheckoutPage() {
               );
             })()}
             <p className="mt-1 text-xs text-muted-foreground">Includes 10% VAT. Server recalculates from live prices.</p>
-            <Button type="submit" disabled={submitting} className="mt-4 w-full bg-accent text-accent-foreground hover:bg-accent/90">
+            <Button
+              type="submit"
+              disabled={submitting || items.length === 0 || formInvalid}
+              className="mt-4 w-full bg-accent text-accent-foreground hover:bg-accent/90"
+            >
               {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Place Order"}
             </Button>
           </Card>

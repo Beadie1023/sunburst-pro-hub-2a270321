@@ -12,6 +12,7 @@ interface CartCtx {
   items: CartItem[];
   itemCount: number;
   subtotal: number;
+  hydrated: boolean;
   addToCart: (item: Omit<CartItem, "quantity">, qty?: number) => void;
   removeFromCart: (product_id: string) => void;
   updateQuantity: (product_id: string, qty: number) => void;
@@ -23,6 +24,7 @@ const KEY = "sunburst.cart.v1";
 
 export function CartProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
+  const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -30,12 +32,27 @@ export function CartProvider({ children }: { children: ReactNode }) {
       const raw = localStorage.getItem(KEY);
       if (raw) setItems(JSON.parse(raw));
     } catch { /* noop */ }
+    setHydrated(true);
   }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    if (!hydrated) return; // don't overwrite storage before hydration
     localStorage.setItem(KEY, JSON.stringify(items));
-  }, [items]);
+  }, [items, hydrated]);
+
+  // Cross-tab sync
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onStorage = (e: StorageEvent) => {
+      if (e.key !== KEY) return;
+      try {
+        setItems(e.newValue ? JSON.parse(e.newValue) : []);
+      } catch { /* noop */ }
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
 
   const addToCart: CartCtx["addToCart"] = (item, qty = 1) =>
     setItems((cur) => {
@@ -62,7 +79,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const subtotal = items.reduce((s, i) => s + i.price * i.quantity, 0);
 
   return (
-    <Ctx.Provider value={{ items, itemCount, subtotal, addToCart, removeFromCart, updateQuantity, clearCart }}>
+    <Ctx.Provider value={{ items, itemCount, subtotal, hydrated, addToCart, removeFromCart, updateQuantity, clearCart }}>
       {children}
     </Ctx.Provider>
   );
