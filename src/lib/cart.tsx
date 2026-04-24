@@ -79,7 +79,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const subtotal = items.reduce((s, i) => s + i.price * i.quantity, 0);
 
   return (
-    <Ctx.Provider value={{ items, itemCount, subtotal, addToCart, removeFromCart, updateQuantity, clearCart }}>
+    <Ctx.Provider value={{ items, itemCount, subtotal, hydrated, addToCart, removeFromCart, updateQuantity, clearCart }}>
       {children}
     </Ctx.Provider>
   );
