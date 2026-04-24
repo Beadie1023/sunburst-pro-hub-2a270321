@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { sendInvoiceEmail } from "@/lib/email.server";
 
 export const getOrder = createServerFn({ method: "GET" })
   .inputValidator((input: unknown) => z.object({ orderId: z.string().uuid() }).parse(input))
@@ -124,6 +125,36 @@ export const placeOrder = createServerFn({ method: "POST" })
       status: "pending",
       note: "Order placed via web checkout",
     });
+
+    // Fire-and-log invoice email — never blocks order creation
+    try {
+      const result = await sendInvoiceEmail({
+        order_number: order.order_number,
+        customer_name: data.contact_name,
+        customer_company: data.company,
+        customer_email: data.email,
+        items: orderItems.map((i) => ({
+          name: i.name,
+          quantity: i.quantity,
+          unit_price: i.unit_price,
+          line_total: i.line_total,
+        })),
+        subtotal,
+        vat_amount,
+        vat_rate: VAT_RATE,
+        total,
+        payment_method: data.payment_method,
+        delivery_method: data.delivery_method,
+        delivery_address: data.delivery_address || null,
+      });
+      if (!result.ok) {
+        console.error(`[placeOrder] Invoice email failed for ${order.order_number}: ${result.error}`);
+      } else {
+        console.log(`[placeOrder] Invoice email sent for ${order.order_number}`);
+      }
+    } catch (err) {
+      console.error(`[placeOrder] Invoice email exception for ${order.order_number}:`, err);
+    }
 
     return {
       order_id: order.id,

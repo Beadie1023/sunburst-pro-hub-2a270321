@@ -12,6 +12,13 @@ export const Route = createFileRoute("/dashboard/orders/$orderId")({
   component: OrderDetail,
 });
 
+interface OrderItem {
+  name: string;
+  quantity: number;
+  unit_price?: number;
+  line_total?: number;
+}
+
 interface Order {
   id: string;
   order_number: string;
@@ -23,6 +30,8 @@ interface Order {
   notes: string | null;
   total: number;
   subtotal: number;
+  vat_amount: number;
+  items: OrderItem[];
   created_at: string;
   client_id: string | null;
   clients: { company_name: string; phone: string | null; email: string | null } | null;
@@ -78,6 +87,21 @@ function OrderDetail() {
     setUpdating(false);
     toast.success(`Status: ${status}`);
     load();
+  };
+
+  const markPaid = async () => {
+    if (!order) return;
+    setUpdating(true);
+    const { error } = await supabase.from("orders").update({ payment_status: "paid" }).eq("id", order.id);
+    setUpdating(false);
+    if (error) return toast.error(error.message);
+    toast.success("Marked as paid");
+    load();
+  };
+
+  const markDelivered = async () => {
+    if (!order) return;
+    await updateStatus("completed");
   };
 
   const reorder = async () => {
@@ -145,8 +169,23 @@ function OrderDetail() {
               <div className="whitespace-pre-wrap text-sm">{order.notes}</div>
             </div>
           )}
+          <div className="sm:col-span-2 border-t border-border pt-3">
+            <div className="text-xs uppercase text-muted-foreground mb-2">Items</div>
+            {order.items && order.items.length > 0 ? (
+              <ul className="space-y-1 text-sm">
+                {order.items.map((it, idx) => (
+                  <li key={idx} className="flex justify-between gap-2">
+                    <span className="truncate">{it.name} <span className="text-muted-foreground">×{it.quantity}</span></span>
+                    <span className="shrink-0 font-medium">${Number(it.line_total ?? 0).toFixed(2)}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-sm text-muted-foreground">No line items.</p>
+            )}
+          </div>
           <div className="sm:col-span-2 border-t border-border pt-3 text-right">
-            <div className="text-xs text-muted-foreground">Total</div>
+            <div className="text-xs text-muted-foreground">Subtotal ${Number(order.subtotal).toFixed(2)} · VAT ${Number(order.vat_amount ?? 0).toFixed(2)}</div>
             <div className="text-2xl font-bold text-primary">${Number(order.total).toFixed(2)}</div>
           </div>
         </div>
@@ -158,6 +197,12 @@ function OrderDetail() {
               {STATUSES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
             </SelectContent>
           </Select>
+          <Button onClick={markPaid} disabled={updating || order.payment_status === "paid"} variant="outline">
+            <CheckCircle2 className="mr-2 h-4 w-4" /> Mark Paid
+          </Button>
+          <Button onClick={markDelivered} disabled={updating || order.status === "completed"} variant="outline">
+            <CheckCircle2 className="mr-2 h-4 w-4" /> Mark Delivered
+          </Button>
           <Button onClick={reorder} variant="outline">
             <Repeat className="mr-2 h-4 w-4" /> Reorder
           </Button>
