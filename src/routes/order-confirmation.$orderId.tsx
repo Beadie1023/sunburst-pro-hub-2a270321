@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useParams } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { getOrder } from "@/lib/orders.functions";
 import { Header } from "@/components/Header";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -31,15 +31,13 @@ function ConfirmationPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    supabase
-      .from("orders")
-      .select("order_number, subtotal, vat_amount, total, payment_method, delivery_method, delivery_address, items, clients(company_name)")
-      .eq("id", orderId)
-      .single()
-      .then(({ data }) => {
+    getOrder({ data: { orderId } })
+      .then((data) => {
+        console.log("ORDER RESPONSE:", data);
         setOrder(data as unknown as Order);
-        setLoading(false);
-      });
+      })
+      .catch((err) => console.error("Failed to load order:", err))
+      .finally(() => setLoading(false));
   }, [orderId]);
 
   if (loading) {
