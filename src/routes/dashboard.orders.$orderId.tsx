@@ -89,6 +89,21 @@ function OrderDetail() {
     load();
   };
 
+  const markPaid = async () => {
+    if (!order) return;
+    setUpdating(true);
+    const { error } = await supabase.from("orders").update({ payment_status: "paid" }).eq("id", order.id);
+    setUpdating(false);
+    if (error) return toast.error(error.message);
+    toast.success("Marked as paid");
+    load();
+  };
+
+  const markDelivered = async () => {
+    if (!order) return;
+    await updateStatus("completed");
+  };
+
   const reorder = async () => {
     if (!order) return;
     const { data, error } = await supabase
