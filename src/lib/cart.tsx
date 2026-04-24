@@ -12,6 +12,7 @@ interface CartCtx {
   items: CartItem[];
   itemCount: number;
   subtotal: number;
+  hydrated: boolean;
   addToCart: (item: Omit<CartItem, "quantity">, qty?: number) => void;
   removeFromCart: (product_id: string) => void;
   updateQuantity: (product_id: string, qty: number) => void;
