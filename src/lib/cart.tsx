@@ -23,6 +23,7 @@ const KEY = "sunburst.cart.v1";
 
 export function CartProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
+  const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -30,12 +31,27 @@ export function CartProvider({ children }: { children: ReactNode }) {
       const raw = localStorage.getItem(KEY);
       if (raw) setItems(JSON.parse(raw));
     } catch { /* noop */ }
+    setHydrated(true);
   }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    if (!hydrated) return; // don't overwrite storage before hydration
     localStorage.setItem(KEY, JSON.stringify(items));
-  }, [items]);
+  }, [items, hydrated]);
+
+  // Cross-tab sync
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onStorage = (e: StorageEvent) => {
+      if (e.key !== KEY) return;
+      try {
+        setItems(e.newValue ? JSON.parse(e.newValue) : []);
+      } catch { /* noop */ }
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
 
   const addToCart: CartCtx["addToCart"] = (item, qty = 1) =>
     setItems((cur) => {
