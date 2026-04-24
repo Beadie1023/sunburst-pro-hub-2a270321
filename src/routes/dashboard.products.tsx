@@ -46,6 +46,14 @@ function AdminProductsPage() {
     else toast.success("Price updated");
   };
 
+  const updateStock = async (id: string, stock_quantity: number) => {
+    const status = stock_quantity <= 0 ? "Out of Stock" : stock_quantity < 10 ? "Low Stock" : "In Stock";
+    const { error } = await supabase.from("products").update({ stock_quantity, status }).eq("id", id);
+    if (error) return toast.error(error.message);
+    toast.success("Stock updated");
+    setProducts((prev) => prev.map((p) => (p.id === id ? { ...p, stock_quantity, status } : p)));
+  };
+
   const filtered = products.filter(
     (p) => q === "" || p.name.toLowerCase().includes(q.toLowerCase()) || p.sku.includes(q),
   );
@@ -89,7 +97,18 @@ function AdminProductsPage() {
                   <TableCell className="font-medium">{p.name}</TableCell>
                   <TableCell>{p.category}</TableCell>
                   <TableCell className="text-sm">{p.brand ?? "—"}</TableCell>
-                  <TableCell>{p.stock_quantity}</TableCell>
+                  <TableCell>
+                    <Input
+                      type="number"
+                      min="0"
+                      defaultValue={p.stock_quantity}
+                      className="h-8 w-20"
+                      onBlur={(e) => {
+                        const v = Number(e.target.value);
+                        if (!Number.isNaN(v) && v !== p.stock_quantity) updateStock(p.id, v);
+                      }}
+                    />
+                  </TableCell>
                   <TableCell>
                     <Badge variant={p.status === "Out of Stock" ? "destructive" : p.status === "Low Stock" ? "secondary" : "default"}>
                       {p.status}
