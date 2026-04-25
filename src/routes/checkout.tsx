@@ -121,10 +121,14 @@ function CheckoutPage() {
     (delivery !== "pickup" && !deliveryAddress.trim());
 
   return (
-    <div className="min-h-screen bg-secondary">
+    <div className="relative min-h-screen">
+      <div
+        className="fixed inset-0 -z-10 bg-cover bg-center"
+        style={{ backgroundImage: "linear-gradient(135deg, oklch(0.18 0.08 258 / 0.55), oklch(0.24 0.09 258 / 0.35)), url(/src/assets/bahamas-beach.jpg)" }}
+      />
       <Header />
       <div className="container mx-auto max-w-5xl px-4 py-10">
-        <h1 className="text-3xl font-bold text-primary">Checkout</h1>
+        <h1 className="text-3xl font-bold text-primary-foreground drop-shadow">Checkout</h1>
         {isContractor && (
           <div className="mt-2 inline-flex items-center gap-2 rounded-md bg-accent/10 px-3 py-1 text-sm font-semibold text-accent">
             Pro Pricing Applied · 10% off
