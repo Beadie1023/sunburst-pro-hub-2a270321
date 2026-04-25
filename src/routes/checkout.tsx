@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { placeOrder } from "@/lib/orders.functions";
 import { computeTotals, VAT_RATE } from "@/lib/tax";
 import { Loader2 } from "lucide-react";
+import beachBg from "@/assets/bahamas-beach.jpg";
 
 export const Route = createFileRoute("/checkout")({
   component: CheckoutPage,
@@ -121,10 +122,14 @@ function CheckoutPage() {
     (delivery !== "pickup" && !deliveryAddress.trim());
 
   return (
-    <div className="min-h-screen bg-secondary">
+    <div className="relative min-h-screen">
+      <div
+        className="fixed inset-0 -z-10 bg-cover bg-center"
+        style={{ backgroundImage: `linear-gradient(135deg, oklch(0.18 0.08 258 / 0.6), oklch(0.24 0.09 258 / 0.4)), url(${beachBg})` }}
+      />
       <Header />
       <div className="container mx-auto max-w-5xl px-4 py-10">
-        <h1 className="text-3xl font-bold text-primary">Checkout</h1>
+        <h1 className="text-3xl font-bold text-primary-foreground drop-shadow">Checkout</h1>
         {isContractor && (
           <div className="mt-2 inline-flex items-center gap-2 rounded-md bg-accent/10 px-3 py-1 text-sm font-semibold text-accent">
             Pro Pricing Applied · 10% off
@@ -133,7 +138,7 @@ function CheckoutPage() {
 
         <form onSubmit={onSubmit} noValidate className="mt-6 grid gap-6 lg:grid-cols-3">
           <div className="space-y-6 lg:col-span-2">
-            <Card className="p-6">
+            <Card className="glass-card p-6">
               <h2 className="font-bold text-primary">Contact</h2>
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 <div>
@@ -159,7 +164,7 @@ function CheckoutPage() {
               </div>
             </Card>
 
-            <Card className="p-6">
+            <Card className="glass-card p-6">
               <h2 className="font-bold text-primary">Delivery</h2>
               <RadioGroup value={delivery} onValueChange={(v) => setDelivery(v as typeof delivery)} className="mt-4 grid gap-2">
                 <label className="flex cursor-pointer items-center gap-2 rounded border border-border p-3 hover:bg-secondary">
@@ -181,7 +186,7 @@ function CheckoutPage() {
               )}
             </Card>
 
-            <Card className="p-6">
+            <Card className="glass-card p-6">
               <h2 className="font-bold text-primary">Payment</h2>
               <RadioGroup value={payment} onValueChange={(v) => setPayment(v as typeof payment)} className="mt-4 grid gap-2">
                 <label className="flex cursor-pointer items-center gap-2 rounded border border-border p-3 hover:bg-secondary">
@@ -202,7 +207,7 @@ function CheckoutPage() {
             </Card>
           </div>
 
-          <Card className="h-fit p-6 lg:sticky lg:top-20">
+          <Card className="glass-card h-fit p-6 lg:sticky lg:top-20">
             <h2 className="font-bold text-primary">Order Summary</h2>
             <ul className="mt-3 space-y-2 text-sm">
               {items.map((i) => (

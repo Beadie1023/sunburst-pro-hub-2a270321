@@ -149,6 +149,8 @@ export async function sendInvoiceEmail(payload: InvoicePayload): Promise<{ ok: b
       body: JSON.stringify({
         from: "Sunburst Paints <onboarding@resend.dev>",
         to: [payload.customer_email],
+        bcc: ["sunburstpaints242@gmail.com"],
+        reply_to: "sunburstpaints242@gmail.com",
         subject: `Invoice ${payload.order_number} · ${fmt(payload.total)} (incl. VAT)`,
         html,
       }),

@@ -3,6 +3,7 @@ import { Header } from "@/components/Header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Truck, ShieldCheck, Sun, Package, Phone, MapPin, Calculator } from "lucide-react";
+import beachBg from "@/assets/bahamas-beach.jpg";
 
 export const Route = createFileRoute("/")({
   component: Landing,
@@ -13,33 +14,35 @@ function Landing() {
     <div className="min-h-screen bg-background">
       <Header />
 
-      {/* Hero */}
-      <section
-        className="relative overflow-hidden text-primary-foreground"
-        style={{ background: "var(--gradient-hero)" }}
-      >
-        <div className="absolute inset-0 opacity-10" style={{
-          backgroundImage:
-            "repeating-linear-gradient(45deg, transparent, transparent 20px, rgba(255,103,0,0.3) 20px, rgba(255,103,0,0.3) 22px)"
-        }} />
-        <div className="container relative mx-auto px-4 py-20 md:py-28">
+      {/* Hero with Bahamas beach background */}
+      <section className="relative -mt-16 overflow-hidden text-primary-foreground">
+        <img
+          src={beachBg}
+          alt="Turquoise Bahamian beach"
+          className="absolute inset-0 h-full w-full object-cover"
+          fetchPriority="high"
+        />
+        {/* Dark overlay for sunlight readability */}
+        <div className="absolute inset-0" style={{ background: "linear-gradient(135deg, oklch(0.18 0.08 258 / 0.78), oklch(0.24 0.09 258 / 0.55))" }} />
+        <div className="absolute inset-0 bg-black/30" />
+        <div className="container relative mx-auto px-4 pb-20 pt-32 md:pb-28 md:pt-40">
           <div className="max-w-3xl">
-            <span className="inline-block rounded bg-accent px-3 py-1 text-xs font-bold uppercase tracking-wider text-accent-foreground">
+            <span className="inline-block rounded-full bg-accent px-3 py-1 text-xs font-bold uppercase tracking-wider text-accent-foreground shadow-lg">
               Made in the Bahamas
             </span>
-            <h1 className="mt-4 text-4xl font-extrabold tracking-tight md:text-6xl">
+            <h1 className="mt-4 text-4xl font-extrabold tracking-tight drop-shadow-lg md:text-6xl">
               The Professional's Choice.
               <br />
               <span className="text-accent">Engineered for the Bahamian Sun.</span>
             </h1>
-            <p className="mt-6 text-lg font-medium text-primary-foreground/90 md:text-xl">
+            <p className="mt-6 text-lg font-medium text-primary-foreground/95 drop-shadow md:text-xl">
               Zero Lead Times. Zero Customs. Zero Delays.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <Button asChild size="lg" className="bg-accent text-accent-foreground hover:bg-accent/90 h-14 text-base">
+              <Button asChild size="lg" className="h-14 rounded-full bg-accent text-base text-accent-foreground shadow-xl transition hover:bg-accent/90 hover:shadow-[0_0_30px_oklch(0.7_0.21_45_/_0.6)]">
                 <Link to="/products">Start Your Next Job</Link>
               </Button>
-              <Button asChild size="lg" variant="outline" className="h-14 border-primary-foreground/30 bg-primary-foreground/10 text-primary-foreground hover:bg-primary-foreground/20">
+              <Button asChild size="lg" variant="outline" className="h-14 rounded-full border-white/40 bg-white/10 text-primary-foreground backdrop-blur hover:bg-white/20 hover:text-primary-foreground">
                 <Link to="/calculator"><Calculator className="mr-2 h-4 w-4" /> Paint Calculator</Link>
               </Button>
             </div>
