@@ -133,7 +133,7 @@ function CheckoutPage() {
 
         <form onSubmit={onSubmit} noValidate className="mt-6 grid gap-6 lg:grid-cols-3">
           <div className="space-y-6 lg:col-span-2">
-            <Card className="p-6">
+            <Card className="glass-card p-6">
               <h2 className="font-bold text-primary">Contact</h2>
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 <div>
@@ -159,7 +159,7 @@ function CheckoutPage() {
               </div>
             </Card>
 
-            <Card className="p-6">
+            <Card className="glass-card p-6">
               <h2 className="font-bold text-primary">Delivery</h2>
               <RadioGroup value={delivery} onValueChange={(v) => setDelivery(v as typeof delivery)} className="mt-4 grid gap-2">
                 <label className="flex cursor-pointer items-center gap-2 rounded border border-border p-3 hover:bg-secondary">
@@ -181,7 +181,7 @@ function CheckoutPage() {
               )}
             </Card>
 
-            <Card className="p-6">
+            <Card className="glass-card p-6">
               <h2 className="font-bold text-primary">Payment</h2>
               <RadioGroup value={payment} onValueChange={(v) => setPayment(v as typeof payment)} className="mt-4 grid gap-2">
                 <label className="flex cursor-pointer items-center gap-2 rounded border border-border p-3 hover:bg-secondary">
@@ -202,7 +202,7 @@ function CheckoutPage() {
             </Card>
           </div>
 
-          <Card className="h-fit p-6 lg:sticky lg:top-20">
+          <Card className="glass-card h-fit p-6 lg:sticky lg:top-20">
             <h2 className="font-bold text-primary">Order Summary</h2>
             <ul className="mt-3 space-y-2 text-sm">
               {items.map((i) => (
