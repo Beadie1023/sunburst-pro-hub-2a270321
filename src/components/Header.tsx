@@ -47,7 +47,7 @@ export function Header() {
         <div className="flex items-center gap-2">
           <Link
             to="/cart"
-            className="relative inline-flex h-9 items-center gap-1.5 rounded-md border border-border bg-background px-3 text-sm font-medium text-foreground hover:bg-secondary"
+            className="relative inline-flex h-10 items-center gap-1.5 rounded-md border border-white/20 bg-white/10 px-3 text-sm font-medium text-primary-foreground backdrop-blur hover:bg-white/20"
             aria-label="Cart"
           >
             <ShoppingCart className="h-4 w-4" />
