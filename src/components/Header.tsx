@@ -15,8 +15,8 @@ export function Header() {
     >
       <div className="container mx-auto flex h-16 items-center justify-between px-4 text-primary-foreground">
         <Link to="/" className="flex items-center gap-2 font-bold text-primary-foreground">
-          <div className="flex h-9 w-9 items-center justify-center rounded-md bg-primary text-primary-foreground">
-            <Sun className="h-5 w-5" style={{ color: "oklch(0.7 0.21 45)" }} />
+          <div className="flex h-9 w-9 items-center justify-center rounded-md bg-accent text-accent-foreground shadow-md">
+            <Sun className="h-5 w-5" />
           </div>
           <div className="leading-tight">
             <div className="text-base">SUNBURST PAINTS</div>
@@ -26,20 +26,20 @@ export function Header() {
           </div>
         </Link>
         <nav className="hidden items-center gap-6 text-sm font-medium md:flex">
-          <Link to="/" className="text-foreground hover:text-accent">
+          <Link to="/" className="text-primary-foreground/90 hover:text-accent">
             Home
           </Link>
-          <Link to="/products" className="text-foreground hover:text-accent">
+          <Link to="/products" className="text-primary-foreground/90 hover:text-accent">
             Products
           </Link>
-          <Link to="/bundles" className="text-foreground hover:text-accent">
+          <Link to="/bundles" className="text-primary-foreground/90 hover:text-accent">
             Bundles
           </Link>
-          <Link to="/calculator" className="text-foreground hover:text-accent">
+          <Link to="/calculator" className="text-primary-foreground/90 hover:text-accent">
             Calculator
           </Link>
           {user && (
-            <Link to="/dashboard" className="text-foreground hover:text-accent">
+            <Link to="/dashboard" className="text-primary-foreground/90 hover:text-accent">
               Dashboard
             </Link>
           )}
