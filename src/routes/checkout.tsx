@@ -125,7 +125,7 @@ function CheckoutPage() {
     <div className="relative min-h-screen">
       <div
         className="fixed inset-0 -z-10 bg-cover bg-center"
-        style={{ backgroundImage: "linear-gradient(135deg, oklch(0.18 0.08 258 / 0.55), oklch(0.24 0.09 258 / 0.35)), url(/src/assets/bahamas-beach.jpg)" }}
+        style={{ backgroundImage: `linear-gradient(135deg, oklch(0.18 0.08 258 / 0.6), oklch(0.24 0.09 258 / 0.4)), url(${beachBg})` }}
       />
       <Header />
       <div className="container mx-auto max-w-5xl px-4 py-10">
