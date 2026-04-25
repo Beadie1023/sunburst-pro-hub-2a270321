@@ -3,6 +3,7 @@ import { Header } from "@/components/Header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Truck, ShieldCheck, Sun, Package, Phone, MapPin, Calculator } from "lucide-react";
+import beachBg from "@/assets/bahamas-beach.jpg";
 
 export const Route = createFileRoute("/")({
   component: Landing,
