@@ -68,6 +68,7 @@ export function Header() {
               <Button
                 variant="outline"
                 size="sm"
+                className="border-white/30 bg-white/10 text-primary-foreground hover:bg-white/20 hover:text-primary-foreground"
                 onClick={async () => {
                   await signOut();
                   navigate({ to: "/" });
