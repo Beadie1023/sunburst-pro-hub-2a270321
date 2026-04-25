@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { placeOrder } from "@/lib/orders.functions";
 import { computeTotals, VAT_RATE } from "@/lib/tax";
 import { Loader2 } from "lucide-react";
+import beachBg from "@/assets/bahamas-beach.jpg";
 
 export const Route = createFileRoute("/checkout")({
   component: CheckoutPage,
