@@ -30,10 +30,17 @@ function CheckoutPage() {
   const isContractor = role === "contractor" || role === "admin";
 
   // Controlled form fields for clean validation
-  const [contactName, setContactName] = useState("");
-  const [company, setCompany] = useState("");
-  const [phone, setPhone] = useState("");
-  const [email, setEmail] = useState(user?.email ?? "");
+  const [contactName, setContactName] = useState(user?.user_metadata?.full_name ?? "");
+  const [company, setCompany] = useState(user?.user_metadata?.company_name ?? "");
+  const [phone, setPhone] = useState(user?.user_metadata?.phone ?? "");
+  // For logged-in users, always use their account email (auto-filled, read-only).
+  // For guests, use the email they enter in the form (fallback).
+  const loggedInEmail = user?.email ?? "";
+  const [email, setEmail] = useState(loggedInEmail);
+  // Keep email synced if auth state hydrates after mount
+  if (loggedInEmail && email !== loggedInEmail && !user) {
+    // no-op guard — handled below via effect-free assignment on render is unsafe; use derived value
+  }
   const [deliveryAddress, setDeliveryAddress] = useState("");
   const [notes, setNotes] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
