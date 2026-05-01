@@ -102,7 +102,7 @@ function CheckoutPage() {
           contact_name: contactName.trim(),
           company: company.trim(),
           phone: phone.trim(),
-          email: email.trim(),
+          email: (user?.email ?? email).trim(),
           delivery_method: delivery,
           delivery_address: deliveryAddress.trim(),
           payment_method: payment,
