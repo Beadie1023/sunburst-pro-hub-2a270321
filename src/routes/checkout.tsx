@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Header } from "@/components/Header";
 import { useCart } from "@/lib/cart";
 import { useAuth } from "@/lib/auth";
@@ -33,14 +33,12 @@ function CheckoutPage() {
   const [contactName, setContactName] = useState(user?.user_metadata?.full_name ?? "");
   const [company, setCompany] = useState(user?.user_metadata?.company_name ?? "");
   const [phone, setPhone] = useState(user?.user_metadata?.phone ?? "");
-  // For logged-in users, always use their account email (auto-filled, read-only).
-  // For guests, use the email they enter in the form (fallback).
-  const loggedInEmail = user?.email ?? "";
-  const [email, setEmail] = useState(loggedInEmail);
-  // Keep email synced if auth state hydrates after mount
-  if (loggedInEmail && email !== loggedInEmail && !user) {
-    // no-op guard — handled below via effect-free assignment on render is unsafe; use derived value
-  }
+  // Logged-in users: always use their account email (auto-filled, read-only).
+  // Guests: use whatever they type (fallback).
+  const [email, setEmail] = useState(user?.email ?? "");
+  useEffect(() => {
+    if (user?.email) setEmail(user.email);
+  }, [user?.email]);
   const [deliveryAddress, setDeliveryAddress] = useState("");
   const [notes, setNotes] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
