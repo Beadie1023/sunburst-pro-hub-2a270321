@@ -93,6 +93,7 @@ function CheckoutPage() {
     }
 
     console.log("Submitting cart:", items);
+    console.log("Order email:", user?.email ?? email.trim());
     setSubmitting(true);
     try {
       const res = await placeOrder({
@@ -163,7 +164,18 @@ function CheckoutPage() {
                 </div>
                 <div>
                   <Label>Email *</Label>
-                  <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} maxLength={160} aria-invalid={!!errors.email} />
+                  <Input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    maxLength={160}
+                    aria-invalid={!!errors.email}
+                    readOnly={!!user?.email}
+                    className={user?.email ? "bg-muted cursor-not-allowed" : undefined}
+                  />
+                  {user?.email ? (
+                    <p className="mt-1 text-xs text-muted-foreground">Invoice will be sent to your account email.</p>
+                  ) : null}
                   {errors.email && <p className="mt-1 text-xs text-destructive">{errors.email}</p>}
                 </div>
               </div>
