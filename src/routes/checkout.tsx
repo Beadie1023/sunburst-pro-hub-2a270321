@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Header } from "@/components/Header";
 import { useCart } from "@/lib/cart";
 import { useAuth } from "@/lib/auth";
@@ -30,10 +30,15 @@ function CheckoutPage() {
   const isContractor = role === "contractor" || role === "admin";
 
   // Controlled form fields for clean validation
-  const [contactName, setContactName] = useState("");
-  const [company, setCompany] = useState("");
-  const [phone, setPhone] = useState("");
+  const [contactName, setContactName] = useState(user?.user_metadata?.full_name ?? "");
+  const [company, setCompany] = useState(user?.user_metadata?.company_name ?? "");
+  const [phone, setPhone] = useState(user?.user_metadata?.phone ?? "");
+  // Logged-in users: always use their account email (auto-filled, read-only).
+  // Guests: use whatever they type (fallback).
   const [email, setEmail] = useState(user?.email ?? "");
+  useEffect(() => {
+    if (user?.email) setEmail(user.email);
+  }, [user?.email]);
   const [deliveryAddress, setDeliveryAddress] = useState("");
   const [notes, setNotes] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -88,6 +93,7 @@ function CheckoutPage() {
     }
 
     console.log("Submitting cart:", items);
+    console.log("Order email:", user?.email ?? email.trim());
     setSubmitting(true);
     try {
       const res = await placeOrder({
@@ -96,7 +102,7 @@ function CheckoutPage() {
           contact_name: contactName.trim(),
           company: company.trim(),
           phone: phone.trim(),
-          email: email.trim(),
+          email: (user?.email ?? email).trim(),
           delivery_method: delivery,
           delivery_address: deliveryAddress.trim(),
           payment_method: payment,
@@ -158,7 +164,18 @@ function CheckoutPage() {
                 </div>
                 <div>
                   <Label>Email *</Label>
-                  <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} maxLength={160} aria-invalid={!!errors.email} />
+                  <Input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    maxLength={160}
+                    aria-invalid={!!errors.email}
+                    readOnly={!!user?.email}
+                    className={user?.email ? "bg-muted cursor-not-allowed" : undefined}
+                  />
+                  {user?.email ? (
+                    <p className="mt-1 text-xs text-muted-foreground">Invoice will be sent to your account email.</p>
+                  ) : null}
                   {errors.email && <p className="mt-1 text-xs text-destructive">{errors.email}</p>}
                 </div>
               </div>
