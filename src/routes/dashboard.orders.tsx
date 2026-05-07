@@ -29,7 +29,7 @@ interface Order {
 const STATUS_OPTIONS = ["all", "pending", "confirmed", "preparing", "out_for_delivery", "completed", "cancelled"];
 
 const STATUS_STYLE: Record<string, string> = {
-  pending: "bg-warning/15 text-foreground border border-warning/40",
+  pending: "bg-warning/15 text-warning-foreground border border-warning/40",
   confirmed: "bg-teal/15 text-teal border border-teal/40",
   preparing: "bg-teal/15 text-teal border border-teal/40",
   out_for_delivery: "bg-accent/15 text-accent border border-accent/40",
@@ -39,7 +39,7 @@ const STATUS_STYLE: Record<string, string> = {
 
 const PAYMENT_STYLE: Record<string, string> = {
   unpaid: "bg-destructive/10 text-destructive border-destructive/30",
-  partial: "bg-warning/15 text-foreground border-warning/40",
+  partial: "bg-warning/15 text-warning-foreground border-warning/40",
   paid: "bg-success/15 text-success border-success/40",
 };
 
@@ -126,7 +126,7 @@ function OrdersPage() {
         </Card>
         <Card className="p-4">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-md bg-warning/15 text-foreground">
+            <div className="flex h-10 w-10 items-center justify-center rounded-md bg-warning/15 text-warning-foreground">
               <Clock className="h-5 w-5" />
             </div>
             <div>
