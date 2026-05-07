@@ -10,12 +10,17 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as ProductsRouteImport } from './routes/products'
+import { Route as MarineRouteImport } from './routes/marine'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as FamilyIslandsRouteImport } from './routes/family-islands'
 import { Route as DashboardRouteImport } from './routes/dashboard'
+import { Route as ContractorProgramRouteImport } from './routes/contractor-program'
+import { Route as ContactRouteImport } from './routes/contact'
 import { Route as CheckoutRouteImport } from './routes/checkout'
 import { Route as CartRouteImport } from './routes/cart'
 import { Route as CalculatorRouteImport } from './routes/calculator'
 import { Route as BundlesRouteImport } from './routes/bundles'
+import { Route as AboutRouteImport } from './routes/about'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as OrderConfirmationOrderIdRouteImport } from './routes/order-confirmation.$orderId'
 import { Route as DashboardProductsRouteImport } from './routes/dashboard.products'
@@ -31,14 +36,34 @@ const ProductsRoute = ProductsRouteImport.update({
   path: '/products',
   getParentRoute: () => rootRouteImport,
 } as any)
+const MarineRoute = MarineRouteImport.update({
+  id: '/marine',
+  path: '/marine',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
+const FamilyIslandsRoute = FamilyIslandsRouteImport.update({
+  id: '/family-islands',
+  path: '/family-islands',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DashboardRoute = DashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ContractorProgramRoute = ContractorProgramRouteImport.update({
+  id: '/contractor-program',
+  path: '/contractor-program',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ContactRoute = ContactRouteImport.update({
+  id: '/contact',
+  path: '/contact',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CheckoutRoute = CheckoutRouteImport.update({
@@ -59,6 +84,11 @@ const CalculatorRoute = CalculatorRouteImport.update({
 const BundlesRoute = BundlesRouteImport.update({
   id: '/bundles',
   path: '/bundles',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AboutRoute = AboutRouteImport.update({
+  id: '/about',
+  path: '/about',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -110,12 +140,17 @@ const DashboardOrdersOrderIdRoute = DashboardOrdersOrderIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/about': typeof AboutRoute
   '/bundles': typeof BundlesRoute
   '/calculator': typeof CalculatorRoute
   '/cart': typeof CartRoute
   '/checkout': typeof CheckoutRoute
+  '/contact': typeof ContactRoute
+  '/contractor-program': typeof ContractorProgramRoute
   '/dashboard': typeof DashboardRouteWithChildren
+  '/family-islands': typeof FamilyIslandsRoute
   '/login': typeof LoginRoute
+  '/marine': typeof MarineRoute
   '/products': typeof ProductsRoute
   '/dashboard/bundles': typeof DashboardBundlesRoute
   '/dashboard/clients': typeof DashboardClientsRoute
@@ -128,12 +163,17 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/about': typeof AboutRoute
   '/bundles': typeof BundlesRoute
   '/calculator': typeof CalculatorRoute
   '/cart': typeof CartRoute
   '/checkout': typeof CheckoutRoute
+  '/contact': typeof ContactRoute
+  '/contractor-program': typeof ContractorProgramRoute
   '/dashboard': typeof DashboardRouteWithChildren
+  '/family-islands': typeof FamilyIslandsRoute
   '/login': typeof LoginRoute
+  '/marine': typeof MarineRoute
   '/products': typeof ProductsRoute
   '/dashboard/bundles': typeof DashboardBundlesRoute
   '/dashboard/clients': typeof DashboardClientsRoute
@@ -147,12 +187,17 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/about': typeof AboutRoute
   '/bundles': typeof BundlesRoute
   '/calculator': typeof CalculatorRoute
   '/cart': typeof CartRoute
   '/checkout': typeof CheckoutRoute
+  '/contact': typeof ContactRoute
+  '/contractor-program': typeof ContractorProgramRoute
   '/dashboard': typeof DashboardRouteWithChildren
+  '/family-islands': typeof FamilyIslandsRoute
   '/login': typeof LoginRoute
+  '/marine': typeof MarineRoute
   '/products': typeof ProductsRoute
   '/dashboard/bundles': typeof DashboardBundlesRoute
   '/dashboard/clients': typeof DashboardClientsRoute
@@ -167,12 +212,17 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/about'
     | '/bundles'
     | '/calculator'
     | '/cart'
     | '/checkout'
+    | '/contact'
+    | '/contractor-program'
     | '/dashboard'
+    | '/family-islands'
     | '/login'
+    | '/marine'
     | '/products'
     | '/dashboard/bundles'
     | '/dashboard/clients'
@@ -185,12 +235,17 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/about'
     | '/bundles'
     | '/calculator'
     | '/cart'
     | '/checkout'
+    | '/contact'
+    | '/contractor-program'
     | '/dashboard'
+    | '/family-islands'
     | '/login'
+    | '/marine'
     | '/products'
     | '/dashboard/bundles'
     | '/dashboard/clients'
@@ -203,12 +258,17 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/about'
     | '/bundles'
     | '/calculator'
     | '/cart'
     | '/checkout'
+    | '/contact'
+    | '/contractor-program'
     | '/dashboard'
+    | '/family-islands'
     | '/login'
+    | '/marine'
     | '/products'
     | '/dashboard/bundles'
     | '/dashboard/clients'
@@ -222,12 +282,17 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AboutRoute: typeof AboutRoute
   BundlesRoute: typeof BundlesRoute
   CalculatorRoute: typeof CalculatorRoute
   CartRoute: typeof CartRoute
   CheckoutRoute: typeof CheckoutRoute
+  ContactRoute: typeof ContactRoute
+  ContractorProgramRoute: typeof ContractorProgramRoute
   DashboardRoute: typeof DashboardRouteWithChildren
+  FamilyIslandsRoute: typeof FamilyIslandsRoute
   LoginRoute: typeof LoginRoute
+  MarineRoute: typeof MarineRoute
   ProductsRoute: typeof ProductsRoute
   OrderConfirmationOrderIdRoute: typeof OrderConfirmationOrderIdRoute
 }
@@ -241,6 +306,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProductsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/marine': {
+      id: '/marine'
+      path: '/marine'
+      fullPath: '/marine'
+      preLoaderRoute: typeof MarineRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/login': {
       id: '/login'
       path: '/login'
@@ -248,11 +320,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/family-islands': {
+      id: '/family-islands'
+      path: '/family-islands'
+      fullPath: '/family-islands'
+      preLoaderRoute: typeof FamilyIslandsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/dashboard': {
       id: '/dashboard'
       path: '/dashboard'
       fullPath: '/dashboard'
       preLoaderRoute: typeof DashboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/contractor-program': {
+      id: '/contractor-program'
+      path: '/contractor-program'
+      fullPath: '/contractor-program'
+      preLoaderRoute: typeof ContractorProgramRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/contact': {
+      id: '/contact'
+      path: '/contact'
+      fullPath: '/contact'
+      preLoaderRoute: typeof ContactRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/checkout': {
@@ -281,6 +374,13 @@ declare module '@tanstack/react-router' {
       path: '/bundles'
       fullPath: '/bundles'
       preLoaderRoute: typeof BundlesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/about': {
+      id: '/about'
+      path: '/about'
+      fullPath: '/about'
+      preLoaderRoute: typeof AboutRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -385,24 +485,20 @@ const DashboardRouteWithChildren = DashboardRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AboutRoute: AboutRoute,
   BundlesRoute: BundlesRoute,
   CalculatorRoute: CalculatorRoute,
   CartRoute: CartRoute,
   CheckoutRoute: CheckoutRoute,
+  ContactRoute: ContactRoute,
+  ContractorProgramRoute: ContractorProgramRoute,
   DashboardRoute: DashboardRouteWithChildren,
+  FamilyIslandsRoute: FamilyIslandsRoute,
   LoginRoute: LoginRoute,
+  MarineRoute: MarineRoute,
   ProductsRoute: ProductsRoute,
   OrderConfirmationOrderIdRoute: OrderConfirmationOrderIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { createStart } from '@tanstack/react-start'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-  }
-}
