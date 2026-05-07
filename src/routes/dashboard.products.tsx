@@ -95,7 +95,7 @@ function AdminProductsPage() {
           </div>
         </Card>
         <Card className="flex items-center gap-3 p-4">
-          <div className="flex h-10 w-10 items-center justify-center rounded-md bg-warning/20 text-warning-foreground">
+          <div className="flex h-10 w-10 items-center justify-center rounded-md bg-warning/20 text-foreground">
             <AlertTriangle className="h-5 w-5" />
           </div>
           <div>
