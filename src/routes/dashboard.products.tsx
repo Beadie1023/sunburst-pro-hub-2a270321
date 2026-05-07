@@ -5,8 +5,9 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Loader2 } from "lucide-react";
+import { Loader2, AlertTriangle, PackageX, PackageCheck, Search } from "lucide-react";
 import { toast } from "sonner";
+import { useMemo } from "react";
 
 export const Route = createFileRoute("/dashboard/products")({
   component: AdminProductsPage,
@@ -58,19 +59,59 @@ function AdminProductsPage() {
     (p) => q === "" || p.name.toLowerCase().includes(q.toLowerCase()) || p.sku.includes(q),
   );
 
+  const stats = useMemo(() => ({
+    total: products.length,
+    inStock: products.filter((p) => p.status === "In Stock").length,
+    low: products.filter((p) => p.status === "Low Stock").length,
+    out: products.filter((p) => p.status === "Out of Stock").length,
+  }), [products]);
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
           <h1 className="text-3xl font-bold text-primary">Products</h1>
-          <p className="text-muted-foreground">{products.length} items · click a price to edit</p>
+          <p className="text-muted-foreground">{products.length} items · click a value to edit</p>
         </div>
-        <Input
-          placeholder="Search…"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          className="md:w-64"
-        />
+        <div className="relative md:w-72">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Search by name or SKU…"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-3">
+        <Card className="flex items-center gap-3 p-4">
+          <div className="flex h-10 w-10 items-center justify-center rounded-md bg-success/15 text-success">
+            <PackageCheck className="h-5 w-5" />
+          </div>
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">In Stock</div>
+            <div className="text-xl font-bold text-primary">{stats.inStock}</div>
+          </div>
+        </Card>
+        <Card className="flex items-center gap-3 p-4">
+          <div className="flex h-10 w-10 items-center justify-center rounded-md bg-warning/20 text-warning-foreground">
+            <AlertTriangle className="h-5 w-5" />
+          </div>
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Low Stock</div>
+            <div className="text-xl font-bold text-primary">{stats.low}</div>
+          </div>
+        </Card>
+        <Card className="flex items-center gap-3 p-4">
+          <div className="flex h-10 w-10 items-center justify-center rounded-md bg-destructive/15 text-destructive">
+            <PackageX className="h-5 w-5" />
+          </div>
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Out of Stock</div>
+            <div className="text-xl font-bold text-primary">{stats.out}</div>
+          </div>
+        </Card>
       </div>
       <Card className="overflow-hidden">
         {loading ? (
