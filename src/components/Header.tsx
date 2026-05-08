@@ -39,9 +39,14 @@ export function Header() {
             Calculator
           </Link>
           {user && (
-            <Link to="/dashboard" className="text-primary-foreground/90 hover:text-accent">
-              Dashboard
-            </Link>
+            <>
+              <Link to="/pro-hub" className="text-primary-foreground/90 hover:text-accent">
+                Pro Hub
+              </Link>
+              <Link to="/dashboard" className="text-primary-foreground/90 hover:text-accent">
+                Dashboard
+              </Link>
+            </>
           )}
         </nav>
         <div className="flex items-center gap-2">
