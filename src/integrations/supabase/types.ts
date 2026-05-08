@@ -272,6 +272,54 @@ export type Database = {
           },
         ]
       }
+      paint_colors: {
+        Row: {
+          active: boolean
+          code: string
+          collection: string
+          coverage_sqft: number
+          created_at: string
+          drying_time: string | null
+          finishes: string[]
+          hex: string
+          id: string
+          lrv: number | null
+          name: string
+          recommended_use: string | null
+          technical_pdf_url: string | null
+        }
+        Insert: {
+          active?: boolean
+          code: string
+          collection: string
+          coverage_sqft?: number
+          created_at?: string
+          drying_time?: string | null
+          finishes?: string[]
+          hex: string
+          id?: string
+          lrv?: number | null
+          name: string
+          recommended_use?: string | null
+          technical_pdf_url?: string | null
+        }
+        Update: {
+          active?: boolean
+          code?: string
+          collection?: string
+          coverage_sqft?: number
+          created_at?: string
+          drying_time?: string | null
+          finishes?: string[]
+          hex?: string
+          id?: string
+          lrv?: number | null
+          name?: string
+          recommended_use?: string | null
+          technical_pdf_url?: string | null
+        }
+        Relationships: []
+      }
       products: {
         Row: {
           brand: string | null
@@ -352,6 +400,199 @@ export type Database = {
           phone?: string | null
         }
         Relationships: []
+      }
+      project_colors: {
+        Row: {
+          created_at: string
+          finish: string
+          gallons: number
+          id: string
+          notes: string | null
+          paint_color_id: string
+          project_id: string
+        }
+        Insert: {
+          created_at?: string
+          finish?: string
+          gallons?: number
+          id?: string
+          notes?: string | null
+          paint_color_id: string
+          project_id: string
+        }
+        Update: {
+          created_at?: string
+          finish?: string
+          gallons?: number
+          id?: string
+          notes?: string | null
+          paint_color_id?: string
+          project_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_colors_paint_color_id_fkey"
+            columns: ["paint_color_id"]
+            isOneToOne: false
+            referencedRelation: "paint_colors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_colors_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      project_items: {
+        Row: {
+          created_at: string
+          id: string
+          product_id: string
+          project_id: string
+          quantity: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          product_id: string
+          project_id: string
+          quantity?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          product_id?: string
+          project_id?: string
+          quantity?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_items_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      projects: {
+        Row: {
+          client_name: string | null
+          created_at: string
+          id: string
+          location: string | null
+          name: string
+          notes: string | null
+          status: string
+          updated_at: string
+          user_id: string
+          wall_height: number | null
+          wall_width: number | null
+        }
+        Insert: {
+          client_name?: string | null
+          created_at?: string
+          id?: string
+          location?: string | null
+          name: string
+          notes?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+          wall_height?: number | null
+          wall_width?: number | null
+        }
+        Update: {
+          client_name?: string | null
+          created_at?: string
+          id?: string
+          location?: string | null
+          name?: string
+          notes?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+          wall_height?: number | null
+          wall_width?: number | null
+        }
+        Relationships: []
+      }
+      room_visualizations: {
+        Row: {
+          created_at: string
+          finish: string | null
+          generated_image: string | null
+          id: string
+          original_image: string | null
+          paint_color_id: string | null
+          project_id: string
+        }
+        Insert: {
+          created_at?: string
+          finish?: string | null
+          generated_image?: string | null
+          id?: string
+          original_image?: string | null
+          paint_color_id?: string | null
+          project_id: string
+        }
+        Update: {
+          created_at?: string
+          finish?: string | null
+          generated_image?: string | null
+          id?: string
+          original_image?: string | null
+          paint_color_id?: string | null
+          project_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "room_visualizations_paint_color_id_fkey"
+            columns: ["paint_color_id"]
+            isOneToOne: false
+            referencedRelation: "paint_colors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "room_visualizations_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      saved_colors: {
+        Row: {
+          created_at: string
+          id: string
+          paint_color_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          paint_color_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          paint_color_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "saved_colors_paint_color_id_fkey"
+            columns: ["paint_color_id"]
+            isOneToOne: false
+            referencedRelation: "paint_colors"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_roles: {
         Row: {
