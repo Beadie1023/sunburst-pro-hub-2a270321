@@ -24,12 +24,17 @@ import { Route as BundlesRouteImport } from './routes/bundles'
 import { Route as AboutRouteImport } from './routes/about'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ProHubIndexRouteImport } from './routes/pro-hub.index'
+import { Route as ProHubSavedRouteImport } from './routes/pro-hub.saved'
+import { Route as ProHubReorderRouteImport } from './routes/pro-hub.reorder'
+import { Route as ProHubProjectsRouteImport } from './routes/pro-hub.projects'
+import { Route as ProHubCreditRouteImport } from './routes/pro-hub.credit'
 import { Route as OrderConfirmationOrderIdRouteImport } from './routes/order-confirmation.$orderId'
 import { Route as DashboardProductsRouteImport } from './routes/dashboard.products'
 import { Route as DashboardOrdersRouteImport } from './routes/dashboard.orders'
 import { Route as DashboardFollowupsRouteImport } from './routes/dashboard.followups'
 import { Route as DashboardClientsRouteImport } from './routes/dashboard.clients'
 import { Route as DashboardBundlesRouteImport } from './routes/dashboard.bundles'
+import { Route as ProHubProjectsProjectIdRouteImport } from './routes/pro-hub.projects.$projectId'
 import { Route as DashboardOrdersNewRouteImport } from './routes/dashboard.orders.new'
 import { Route as DashboardOrdersOrderIdRouteImport } from './routes/dashboard.orders.$orderId'
 
@@ -108,6 +113,26 @@ const ProHubIndexRoute = ProHubIndexRouteImport.update({
   path: '/',
   getParentRoute: () => ProHubRoute,
 } as any)
+const ProHubSavedRoute = ProHubSavedRouteImport.update({
+  id: '/saved',
+  path: '/saved',
+  getParentRoute: () => ProHubRoute,
+} as any)
+const ProHubReorderRoute = ProHubReorderRouteImport.update({
+  id: '/reorder',
+  path: '/reorder',
+  getParentRoute: () => ProHubRoute,
+} as any)
+const ProHubProjectsRoute = ProHubProjectsRouteImport.update({
+  id: '/projects',
+  path: '/projects',
+  getParentRoute: () => ProHubRoute,
+} as any)
+const ProHubCreditRoute = ProHubCreditRouteImport.update({
+  id: '/credit',
+  path: '/credit',
+  getParentRoute: () => ProHubRoute,
+} as any)
 const OrderConfirmationOrderIdRoute =
   OrderConfirmationOrderIdRouteImport.update({
     id: '/order-confirmation/$orderId',
@@ -138,6 +163,11 @@ const DashboardBundlesRoute = DashboardBundlesRouteImport.update({
   id: '/bundles',
   path: '/bundles',
   getParentRoute: () => DashboardRoute,
+} as any)
+const ProHubProjectsProjectIdRoute = ProHubProjectsProjectIdRouteImport.update({
+  id: '/$projectId',
+  path: '/$projectId',
+  getParentRoute: () => ProHubProjectsRoute,
 } as any)
 const DashboardOrdersNewRoute = DashboardOrdersNewRouteImport.update({
   id: '/new',
@@ -171,9 +201,14 @@ export interface FileRoutesByFullPath {
   '/dashboard/orders': typeof DashboardOrdersRouteWithChildren
   '/dashboard/products': typeof DashboardProductsRoute
   '/order-confirmation/$orderId': typeof OrderConfirmationOrderIdRoute
+  '/pro-hub/credit': typeof ProHubCreditRoute
+  '/pro-hub/projects': typeof ProHubProjectsRouteWithChildren
+  '/pro-hub/reorder': typeof ProHubReorderRoute
+  '/pro-hub/saved': typeof ProHubSavedRoute
   '/pro-hub/': typeof ProHubIndexRoute
   '/dashboard/orders/$orderId': typeof DashboardOrdersOrderIdRoute
   '/dashboard/orders/new': typeof DashboardOrdersNewRoute
+  '/pro-hub/projects/$projectId': typeof ProHubProjectsProjectIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -195,9 +230,14 @@ export interface FileRoutesByTo {
   '/dashboard/orders': typeof DashboardOrdersRouteWithChildren
   '/dashboard/products': typeof DashboardProductsRoute
   '/order-confirmation/$orderId': typeof OrderConfirmationOrderIdRoute
+  '/pro-hub/credit': typeof ProHubCreditRoute
+  '/pro-hub/projects': typeof ProHubProjectsRouteWithChildren
+  '/pro-hub/reorder': typeof ProHubReorderRoute
+  '/pro-hub/saved': typeof ProHubSavedRoute
   '/pro-hub': typeof ProHubIndexRoute
   '/dashboard/orders/$orderId': typeof DashboardOrdersOrderIdRoute
   '/dashboard/orders/new': typeof DashboardOrdersNewRoute
+  '/pro-hub/projects/$projectId': typeof ProHubProjectsProjectIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -221,9 +261,14 @@ export interface FileRoutesById {
   '/dashboard/orders': typeof DashboardOrdersRouteWithChildren
   '/dashboard/products': typeof DashboardProductsRoute
   '/order-confirmation/$orderId': typeof OrderConfirmationOrderIdRoute
+  '/pro-hub/credit': typeof ProHubCreditRoute
+  '/pro-hub/projects': typeof ProHubProjectsRouteWithChildren
+  '/pro-hub/reorder': typeof ProHubReorderRoute
+  '/pro-hub/saved': typeof ProHubSavedRoute
   '/pro-hub/': typeof ProHubIndexRoute
   '/dashboard/orders/$orderId': typeof DashboardOrdersOrderIdRoute
   '/dashboard/orders/new': typeof DashboardOrdersNewRoute
+  '/pro-hub/projects/$projectId': typeof ProHubProjectsProjectIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -248,9 +293,14 @@ export interface FileRouteTypes {
     | '/dashboard/orders'
     | '/dashboard/products'
     | '/order-confirmation/$orderId'
+    | '/pro-hub/credit'
+    | '/pro-hub/projects'
+    | '/pro-hub/reorder'
+    | '/pro-hub/saved'
     | '/pro-hub/'
     | '/dashboard/orders/$orderId'
     | '/dashboard/orders/new'
+    | '/pro-hub/projects/$projectId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -272,9 +322,14 @@ export interface FileRouteTypes {
     | '/dashboard/orders'
     | '/dashboard/products'
     | '/order-confirmation/$orderId'
+    | '/pro-hub/credit'
+    | '/pro-hub/projects'
+    | '/pro-hub/reorder'
+    | '/pro-hub/saved'
     | '/pro-hub'
     | '/dashboard/orders/$orderId'
     | '/dashboard/orders/new'
+    | '/pro-hub/projects/$projectId'
   id:
     | '__root__'
     | '/'
@@ -297,9 +352,14 @@ export interface FileRouteTypes {
     | '/dashboard/orders'
     | '/dashboard/products'
     | '/order-confirmation/$orderId'
+    | '/pro-hub/credit'
+    | '/pro-hub/projects'
+    | '/pro-hub/reorder'
+    | '/pro-hub/saved'
     | '/pro-hub/'
     | '/dashboard/orders/$orderId'
     | '/dashboard/orders/new'
+    | '/pro-hub/projects/$projectId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -427,6 +487,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProHubIndexRouteImport
       parentRoute: typeof ProHubRoute
     }
+    '/pro-hub/saved': {
+      id: '/pro-hub/saved'
+      path: '/saved'
+      fullPath: '/pro-hub/saved'
+      preLoaderRoute: typeof ProHubSavedRouteImport
+      parentRoute: typeof ProHubRoute
+    }
+    '/pro-hub/reorder': {
+      id: '/pro-hub/reorder'
+      path: '/reorder'
+      fullPath: '/pro-hub/reorder'
+      preLoaderRoute: typeof ProHubReorderRouteImport
+      parentRoute: typeof ProHubRoute
+    }
+    '/pro-hub/projects': {
+      id: '/pro-hub/projects'
+      path: '/projects'
+      fullPath: '/pro-hub/projects'
+      preLoaderRoute: typeof ProHubProjectsRouteImport
+      parentRoute: typeof ProHubRoute
+    }
+    '/pro-hub/credit': {
+      id: '/pro-hub/credit'
+      path: '/credit'
+      fullPath: '/pro-hub/credit'
+      preLoaderRoute: typeof ProHubCreditRouteImport
+      parentRoute: typeof ProHubRoute
+    }
     '/order-confirmation/$orderId': {
       id: '/order-confirmation/$orderId'
       path: '/order-confirmation/$orderId'
@@ -468,6 +556,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/dashboard/bundles'
       preLoaderRoute: typeof DashboardBundlesRouteImport
       parentRoute: typeof DashboardRoute
+    }
+    '/pro-hub/projects/$projectId': {
+      id: '/pro-hub/projects/$projectId'
+      path: '/$projectId'
+      fullPath: '/pro-hub/projects/$projectId'
+      preLoaderRoute: typeof ProHubProjectsProjectIdRouteImport
+      parentRoute: typeof ProHubProjectsRoute
     }
     '/dashboard/orders/new': {
       id: '/dashboard/orders/new'
@@ -520,11 +615,31 @@ const DashboardRouteWithChildren = DashboardRoute._addFileChildren(
   DashboardRouteChildren,
 )
 
+interface ProHubProjectsRouteChildren {
+  ProHubProjectsProjectIdRoute: typeof ProHubProjectsProjectIdRoute
+}
+
+const ProHubProjectsRouteChildren: ProHubProjectsRouteChildren = {
+  ProHubProjectsProjectIdRoute: ProHubProjectsProjectIdRoute,
+}
+
+const ProHubProjectsRouteWithChildren = ProHubProjectsRoute._addFileChildren(
+  ProHubProjectsRouteChildren,
+)
+
 interface ProHubRouteChildren {
+  ProHubCreditRoute: typeof ProHubCreditRoute
+  ProHubProjectsRoute: typeof ProHubProjectsRouteWithChildren
+  ProHubReorderRoute: typeof ProHubReorderRoute
+  ProHubSavedRoute: typeof ProHubSavedRoute
   ProHubIndexRoute: typeof ProHubIndexRoute
 }
 
 const ProHubRouteChildren: ProHubRouteChildren = {
+  ProHubCreditRoute: ProHubCreditRoute,
+  ProHubProjectsRoute: ProHubProjectsRouteWithChildren,
+  ProHubReorderRoute: ProHubReorderRoute,
+  ProHubSavedRoute: ProHubSavedRoute,
   ProHubIndexRoute: ProHubIndexRoute,
 }
 
