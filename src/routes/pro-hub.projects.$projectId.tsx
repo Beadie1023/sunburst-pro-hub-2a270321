@@ -75,7 +75,7 @@ function ProjectDetail() {
     else { setProject({ ...project, ...patch }); }
   };
 
-  const updateColor = async (id: string, patch: Partial<ProjectColor>) => {
+  const updateColor = async (id: string, patch: { finish?: string; gallons?: number }) => {
     setColors((cs) => cs.map((c) => (c.id === id ? { ...c, ...patch } : c)));
     const { error } = await supabase.from("project_colors").update(patch).eq("id", id);
     if (error) toast.error(error.message);
