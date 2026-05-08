@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as ProductsRouteImport } from './routes/products'
+import { Route as ProHubRouteImport } from './routes/pro-hub'
 import { Route as MarineRouteImport } from './routes/marine'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as FamilyIslandsRouteImport } from './routes/family-islands'
@@ -22,6 +23,7 @@ import { Route as CalculatorRouteImport } from './routes/calculator'
 import { Route as BundlesRouteImport } from './routes/bundles'
 import { Route as AboutRouteImport } from './routes/about'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ProHubIndexRouteImport } from './routes/pro-hub.index'
 import { Route as OrderConfirmationOrderIdRouteImport } from './routes/order-confirmation.$orderId'
 import { Route as DashboardProductsRouteImport } from './routes/dashboard.products'
 import { Route as DashboardOrdersRouteImport } from './routes/dashboard.orders'
@@ -34,6 +36,11 @@ import { Route as DashboardOrdersOrderIdRouteImport } from './routes/dashboard.o
 const ProductsRoute = ProductsRouteImport.update({
   id: '/products',
   path: '/products',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProHubRoute = ProHubRouteImport.update({
+  id: '/pro-hub',
+  path: '/pro-hub',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MarineRoute = MarineRouteImport.update({
@@ -96,6 +103,11 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ProHubIndexRoute = ProHubIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => ProHubRoute,
+} as any)
 const OrderConfirmationOrderIdRoute =
   OrderConfirmationOrderIdRouteImport.update({
     id: '/order-confirmation/$orderId',
@@ -151,6 +163,7 @@ export interface FileRoutesByFullPath {
   '/family-islands': typeof FamilyIslandsRoute
   '/login': typeof LoginRoute
   '/marine': typeof MarineRoute
+  '/pro-hub': typeof ProHubRouteWithChildren
   '/products': typeof ProductsRoute
   '/dashboard/bundles': typeof DashboardBundlesRoute
   '/dashboard/clients': typeof DashboardClientsRoute
@@ -158,6 +171,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/orders': typeof DashboardOrdersRouteWithChildren
   '/dashboard/products': typeof DashboardProductsRoute
   '/order-confirmation/$orderId': typeof OrderConfirmationOrderIdRoute
+  '/pro-hub/': typeof ProHubIndexRoute
   '/dashboard/orders/$orderId': typeof DashboardOrdersOrderIdRoute
   '/dashboard/orders/new': typeof DashboardOrdersNewRoute
 }
@@ -181,6 +195,7 @@ export interface FileRoutesByTo {
   '/dashboard/orders': typeof DashboardOrdersRouteWithChildren
   '/dashboard/products': typeof DashboardProductsRoute
   '/order-confirmation/$orderId': typeof OrderConfirmationOrderIdRoute
+  '/pro-hub': typeof ProHubIndexRoute
   '/dashboard/orders/$orderId': typeof DashboardOrdersOrderIdRoute
   '/dashboard/orders/new': typeof DashboardOrdersNewRoute
 }
@@ -198,6 +213,7 @@ export interface FileRoutesById {
   '/family-islands': typeof FamilyIslandsRoute
   '/login': typeof LoginRoute
   '/marine': typeof MarineRoute
+  '/pro-hub': typeof ProHubRouteWithChildren
   '/products': typeof ProductsRoute
   '/dashboard/bundles': typeof DashboardBundlesRoute
   '/dashboard/clients': typeof DashboardClientsRoute
@@ -205,6 +221,7 @@ export interface FileRoutesById {
   '/dashboard/orders': typeof DashboardOrdersRouteWithChildren
   '/dashboard/products': typeof DashboardProductsRoute
   '/order-confirmation/$orderId': typeof OrderConfirmationOrderIdRoute
+  '/pro-hub/': typeof ProHubIndexRoute
   '/dashboard/orders/$orderId': typeof DashboardOrdersOrderIdRoute
   '/dashboard/orders/new': typeof DashboardOrdersNewRoute
 }
@@ -223,6 +240,7 @@ export interface FileRouteTypes {
     | '/family-islands'
     | '/login'
     | '/marine'
+    | '/pro-hub'
     | '/products'
     | '/dashboard/bundles'
     | '/dashboard/clients'
@@ -230,6 +248,7 @@ export interface FileRouteTypes {
     | '/dashboard/orders'
     | '/dashboard/products'
     | '/order-confirmation/$orderId'
+    | '/pro-hub/'
     | '/dashboard/orders/$orderId'
     | '/dashboard/orders/new'
   fileRoutesByTo: FileRoutesByTo
@@ -253,6 +272,7 @@ export interface FileRouteTypes {
     | '/dashboard/orders'
     | '/dashboard/products'
     | '/order-confirmation/$orderId'
+    | '/pro-hub'
     | '/dashboard/orders/$orderId'
     | '/dashboard/orders/new'
   id:
@@ -269,6 +289,7 @@ export interface FileRouteTypes {
     | '/family-islands'
     | '/login'
     | '/marine'
+    | '/pro-hub'
     | '/products'
     | '/dashboard/bundles'
     | '/dashboard/clients'
@@ -276,6 +297,7 @@ export interface FileRouteTypes {
     | '/dashboard/orders'
     | '/dashboard/products'
     | '/order-confirmation/$orderId'
+    | '/pro-hub/'
     | '/dashboard/orders/$orderId'
     | '/dashboard/orders/new'
   fileRoutesById: FileRoutesById
@@ -293,6 +315,7 @@ export interface RootRouteChildren {
   FamilyIslandsRoute: typeof FamilyIslandsRoute
   LoginRoute: typeof LoginRoute
   MarineRoute: typeof MarineRoute
+  ProHubRoute: typeof ProHubRouteWithChildren
   ProductsRoute: typeof ProductsRoute
   OrderConfirmationOrderIdRoute: typeof OrderConfirmationOrderIdRoute
 }
@@ -304,6 +327,13 @@ declare module '@tanstack/react-router' {
       path: '/products'
       fullPath: '/products'
       preLoaderRoute: typeof ProductsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/pro-hub': {
+      id: '/pro-hub'
+      path: '/pro-hub'
+      fullPath: '/pro-hub'
+      preLoaderRoute: typeof ProHubRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/marine': {
@@ -389,6 +419,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/pro-hub/': {
+      id: '/pro-hub/'
+      path: '/'
+      fullPath: '/pro-hub/'
+      preLoaderRoute: typeof ProHubIndexRouteImport
+      parentRoute: typeof ProHubRoute
     }
     '/order-confirmation/$orderId': {
       id: '/order-confirmation/$orderId'
@@ -483,6 +520,17 @@ const DashboardRouteWithChildren = DashboardRoute._addFileChildren(
   DashboardRouteChildren,
 )
 
+interface ProHubRouteChildren {
+  ProHubIndexRoute: typeof ProHubIndexRoute
+}
+
+const ProHubRouteChildren: ProHubRouteChildren = {
+  ProHubIndexRoute: ProHubIndexRoute,
+}
+
+const ProHubRouteWithChildren =
+  ProHubRoute._addFileChildren(ProHubRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AboutRoute: AboutRoute,
@@ -496,9 +544,19 @@ const rootRouteChildren: RootRouteChildren = {
   FamilyIslandsRoute: FamilyIslandsRoute,
   LoginRoute: LoginRoute,
   MarineRoute: MarineRoute,
+  ProHubRoute: ProHubRouteWithChildren,
   ProductsRoute: ProductsRoute,
   OrderConfirmationOrderIdRoute: OrderConfirmationOrderIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { createStart } from '@tanstack/react-start'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+  }
+}
