@@ -283,10 +283,14 @@ export type Database = {
           finishes: string[]
           hex: string
           id: string
+          in_stock: boolean
           lrv: number | null
           name: string
           recommended_use: string | null
+          swatch_image_url: string | null
+          technical_notes: string | null
           technical_pdf_url: string | null
+          updated_at: string
         }
         Insert: {
           active?: boolean
@@ -298,10 +302,14 @@ export type Database = {
           finishes?: string[]
           hex: string
           id?: string
+          in_stock?: boolean
           lrv?: number | null
           name: string
           recommended_use?: string | null
+          swatch_image_url?: string | null
+          technical_notes?: string | null
           technical_pdf_url?: string | null
+          updated_at?: string
         }
         Update: {
           active?: boolean
@@ -313,10 +321,14 @@ export type Database = {
           finishes?: string[]
           hex?: string
           id?: string
+          in_stock?: boolean
           lrv?: number | null
           name?: string
           recommended_use?: string | null
+          swatch_image_url?: string | null
+          technical_notes?: string | null
           technical_pdf_url?: string | null
+          updated_at?: string
         }
         Relationships: []
       }
@@ -379,6 +391,7 @@ export type Database = {
           email: string
           full_name: string | null
           id: string
+          must_change_password: boolean
           phone: string | null
         }
         Insert: {
@@ -388,6 +401,7 @@ export type Database = {
           email: string
           full_name?: string | null
           id: string
+          must_change_password?: boolean
           phone?: string | null
         }
         Update: {
@@ -397,6 +411,7 @@ export type Database = {
           email?: string
           full_name?: string | null
           id?: string
+          must_change_password?: boolean
           phone?: string | null
         }
         Relationships: []
