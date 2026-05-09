@@ -16,9 +16,9 @@ function DashboardLayout() {
 
   useEffect(() => {
     if (loading) return;
-    if (!user) return navigate({ to: "/admin/login" });
-    if (mustChangePassword) return navigate({ to: "/admin/change-password" });
-    if (role && role !== "admin") return navigate({ to: "/pro-hub" });
+    if (!user) { navigate({ to: "/admin/login" }); return; }
+    if (mustChangePassword) { navigate({ to: "/admin/change-password" }); return; }
+    if (role && role !== "admin") navigate({ to: "/pro-hub" });
   }, [loading, user, role, mustChangePassword, navigate]);
 
   if (loading || !user || role !== "admin") {
