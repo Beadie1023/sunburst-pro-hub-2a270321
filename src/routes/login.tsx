@@ -108,8 +108,9 @@ function LoginPage() {
               </form>
             </TabsContent>
           </Tabs>
-          <p className="mt-6 text-center text-xs text-muted-foreground">
+          <p className="mt-6 flex items-center justify-between text-xs text-muted-foreground">
             <Link to="/" className="hover:text-accent">← Back to home</Link>
+            <Link to="/admin/login" className="hover:text-accent">Admin login →</Link>
           </p>
         </Card>
       </div>

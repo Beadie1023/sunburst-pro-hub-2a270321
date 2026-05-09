@@ -8,6 +8,7 @@ interface AuthCtx {
   user: User | null;
   session: Session | null;
   role: Role | null;
+  mustChangePassword: boolean;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signUp: (
@@ -16,6 +17,7 @@ interface AuthCtx {
     meta: { full_name: string; company_name: string; phone: string },
   ) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
+  refreshProfile: () => Promise<void>;
 }
 
 const Ctx = createContext<AuthCtx | undefined>(undefined);
@@ -24,17 +26,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [role, setRole] = useState<Role | null>(null);
+  const [mustChangePassword, setMustChangePassword] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  const loadRole = async (uid: string) => {
-    const { data } = await supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", uid)
-      .order("role")
-      .limit(1)
-      .maybeSingle();
-    setRole((data?.role as Role) ?? "pending");
+  const loadProfile = async (uid: string) => {
+    const [{ data: roleRow }, { data: profile }] = await Promise.all([
+      supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", uid)
+        .order("role")
+        .limit(1)
+        .maybeSingle(),
+      supabase
+        .from("profiles")
+        .select("must_change_password")
+        .eq("id", uid)
+        .maybeSingle(),
+    ]);
+    setRole((roleRow?.role as Role) ?? "pending");
+    setMustChangePassword(Boolean(profile?.must_change_password));
+  };
+
+  const refreshProfile = async () => {
+    if (user) await loadProfile(user.id);
   };
 
   useEffect(() => {
@@ -42,15 +57,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(sess);
       setUser(sess?.user ?? null);
       if (sess?.user) {
-        setTimeout(() => loadRole(sess.user.id), 0);
+        setTimeout(() => loadProfile(sess.user.id), 0);
       } else {
         setRole(null);
+        setMustChangePassword(false);
       }
     });
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session);
       setUser(data.session?.user ?? null);
-      if (data.session?.user) loadRole(data.session.user.id);
+      if (data.session?.user) loadProfile(data.session.user.id);
       setLoading(false);
     });
     return () => sub.subscription.unsubscribe();
@@ -78,7 +94,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <Ctx.Provider value={{ user, session, role, loading, signIn, signUp, signOut }}>
+    <Ctx.Provider value={{ user, session, role, mustChangePassword, loading, signIn, signUp, signOut, refreshProfile }}>
       {children}
     </Ctx.Provider>
   );

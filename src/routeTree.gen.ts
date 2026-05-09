@@ -32,8 +32,11 @@ import { Route as OrderConfirmationOrderIdRouteImport } from './routes/order-con
 import { Route as DashboardProductsRouteImport } from './routes/dashboard.products'
 import { Route as DashboardOrdersRouteImport } from './routes/dashboard.orders'
 import { Route as DashboardFollowupsRouteImport } from './routes/dashboard.followups'
+import { Route as DashboardColorsRouteImport } from './routes/dashboard.colors'
 import { Route as DashboardClientsRouteImport } from './routes/dashboard.clients'
 import { Route as DashboardBundlesRouteImport } from './routes/dashboard.bundles'
+import { Route as AdminLoginRouteImport } from './routes/admin.login'
+import { Route as AdminChangePasswordRouteImport } from './routes/admin.change-password'
 import { Route as ProHubProjectsProjectIdRouteImport } from './routes/pro-hub.projects.$projectId'
 import { Route as DashboardOrdersNewRouteImport } from './routes/dashboard.orders.new'
 import { Route as DashboardOrdersOrderIdRouteImport } from './routes/dashboard.orders.$orderId'
@@ -154,6 +157,11 @@ const DashboardFollowupsRoute = DashboardFollowupsRouteImport.update({
   path: '/followups',
   getParentRoute: () => DashboardRoute,
 } as any)
+const DashboardColorsRoute = DashboardColorsRouteImport.update({
+  id: '/colors',
+  path: '/colors',
+  getParentRoute: () => DashboardRoute,
+} as any)
 const DashboardClientsRoute = DashboardClientsRouteImport.update({
   id: '/clients',
   path: '/clients',
@@ -163,6 +171,16 @@ const DashboardBundlesRoute = DashboardBundlesRouteImport.update({
   id: '/bundles',
   path: '/bundles',
   getParentRoute: () => DashboardRoute,
+} as any)
+const AdminLoginRoute = AdminLoginRouteImport.update({
+  id: '/admin/login',
+  path: '/admin/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminChangePasswordRoute = AdminChangePasswordRouteImport.update({
+  id: '/admin/change-password',
+  path: '/admin/change-password',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const ProHubProjectsProjectIdRoute = ProHubProjectsProjectIdRouteImport.update({
   id: '/$projectId',
@@ -195,8 +213,11 @@ export interface FileRoutesByFullPath {
   '/marine': typeof MarineRoute
   '/pro-hub': typeof ProHubRouteWithChildren
   '/products': typeof ProductsRoute
+  '/admin/change-password': typeof AdminChangePasswordRoute
+  '/admin/login': typeof AdminLoginRoute
   '/dashboard/bundles': typeof DashboardBundlesRoute
   '/dashboard/clients': typeof DashboardClientsRoute
+  '/dashboard/colors': typeof DashboardColorsRoute
   '/dashboard/followups': typeof DashboardFollowupsRoute
   '/dashboard/orders': typeof DashboardOrdersRouteWithChildren
   '/dashboard/products': typeof DashboardProductsRoute
@@ -224,8 +245,11 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/marine': typeof MarineRoute
   '/products': typeof ProductsRoute
+  '/admin/change-password': typeof AdminChangePasswordRoute
+  '/admin/login': typeof AdminLoginRoute
   '/dashboard/bundles': typeof DashboardBundlesRoute
   '/dashboard/clients': typeof DashboardClientsRoute
+  '/dashboard/colors': typeof DashboardColorsRoute
   '/dashboard/followups': typeof DashboardFollowupsRoute
   '/dashboard/orders': typeof DashboardOrdersRouteWithChildren
   '/dashboard/products': typeof DashboardProductsRoute
@@ -255,8 +279,11 @@ export interface FileRoutesById {
   '/marine': typeof MarineRoute
   '/pro-hub': typeof ProHubRouteWithChildren
   '/products': typeof ProductsRoute
+  '/admin/change-password': typeof AdminChangePasswordRoute
+  '/admin/login': typeof AdminLoginRoute
   '/dashboard/bundles': typeof DashboardBundlesRoute
   '/dashboard/clients': typeof DashboardClientsRoute
+  '/dashboard/colors': typeof DashboardColorsRoute
   '/dashboard/followups': typeof DashboardFollowupsRoute
   '/dashboard/orders': typeof DashboardOrdersRouteWithChildren
   '/dashboard/products': typeof DashboardProductsRoute
@@ -287,8 +314,11 @@ export interface FileRouteTypes {
     | '/marine'
     | '/pro-hub'
     | '/products'
+    | '/admin/change-password'
+    | '/admin/login'
     | '/dashboard/bundles'
     | '/dashboard/clients'
+    | '/dashboard/colors'
     | '/dashboard/followups'
     | '/dashboard/orders'
     | '/dashboard/products'
@@ -316,8 +346,11 @@ export interface FileRouteTypes {
     | '/login'
     | '/marine'
     | '/products'
+    | '/admin/change-password'
+    | '/admin/login'
     | '/dashboard/bundles'
     | '/dashboard/clients'
+    | '/dashboard/colors'
     | '/dashboard/followups'
     | '/dashboard/orders'
     | '/dashboard/products'
@@ -346,8 +379,11 @@ export interface FileRouteTypes {
     | '/marine'
     | '/pro-hub'
     | '/products'
+    | '/admin/change-password'
+    | '/admin/login'
     | '/dashboard/bundles'
     | '/dashboard/clients'
+    | '/dashboard/colors'
     | '/dashboard/followups'
     | '/dashboard/orders'
     | '/dashboard/products'
@@ -377,6 +413,8 @@ export interface RootRouteChildren {
   MarineRoute: typeof MarineRoute
   ProHubRoute: typeof ProHubRouteWithChildren
   ProductsRoute: typeof ProductsRoute
+  AdminChangePasswordRoute: typeof AdminChangePasswordRoute
+  AdminLoginRoute: typeof AdminLoginRoute
   OrderConfirmationOrderIdRoute: typeof OrderConfirmationOrderIdRoute
 }
 
@@ -543,6 +581,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardFollowupsRouteImport
       parentRoute: typeof DashboardRoute
     }
+    '/dashboard/colors': {
+      id: '/dashboard/colors'
+      path: '/colors'
+      fullPath: '/dashboard/colors'
+      preLoaderRoute: typeof DashboardColorsRouteImport
+      parentRoute: typeof DashboardRoute
+    }
     '/dashboard/clients': {
       id: '/dashboard/clients'
       path: '/clients'
@@ -556,6 +601,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/dashboard/bundles'
       preLoaderRoute: typeof DashboardBundlesRouteImport
       parentRoute: typeof DashboardRoute
+    }
+    '/admin/login': {
+      id: '/admin/login'
+      path: '/admin/login'
+      fullPath: '/admin/login'
+      preLoaderRoute: typeof AdminLoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/change-password': {
+      id: '/admin/change-password'
+      path: '/admin/change-password'
+      fullPath: '/admin/change-password'
+      preLoaderRoute: typeof AdminChangePasswordRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/pro-hub/projects/$projectId': {
       id: '/pro-hub/projects/$projectId'
@@ -598,6 +657,7 @@ const DashboardOrdersRouteWithChildren = DashboardOrdersRoute._addFileChildren(
 interface DashboardRouteChildren {
   DashboardBundlesRoute: typeof DashboardBundlesRoute
   DashboardClientsRoute: typeof DashboardClientsRoute
+  DashboardColorsRoute: typeof DashboardColorsRoute
   DashboardFollowupsRoute: typeof DashboardFollowupsRoute
   DashboardOrdersRoute: typeof DashboardOrdersRouteWithChildren
   DashboardProductsRoute: typeof DashboardProductsRoute
@@ -606,6 +666,7 @@ interface DashboardRouteChildren {
 const DashboardRouteChildren: DashboardRouteChildren = {
   DashboardBundlesRoute: DashboardBundlesRoute,
   DashboardClientsRoute: DashboardClientsRoute,
+  DashboardColorsRoute: DashboardColorsRoute,
   DashboardFollowupsRoute: DashboardFollowupsRoute,
   DashboardOrdersRoute: DashboardOrdersRouteWithChildren,
   DashboardProductsRoute: DashboardProductsRoute,
@@ -661,6 +722,8 @@ const rootRouteChildren: RootRouteChildren = {
   MarineRoute: MarineRoute,
   ProHubRoute: ProHubRouteWithChildren,
   ProductsRoute: ProductsRoute,
+  AdminChangePasswordRoute: AdminChangePasswordRoute,
+  AdminLoginRoute: AdminLoginRoute,
   OrderConfirmationOrderIdRoute: OrderConfirmationOrderIdRoute,
 }
 export const routeTree = rootRouteImport
