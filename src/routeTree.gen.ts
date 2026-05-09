@@ -34,6 +34,8 @@ import { Route as DashboardOrdersRouteImport } from './routes/dashboard.orders'
 import { Route as DashboardFollowupsRouteImport } from './routes/dashboard.followups'
 import { Route as DashboardClientsRouteImport } from './routes/dashboard.clients'
 import { Route as DashboardBundlesRouteImport } from './routes/dashboard.bundles'
+import { Route as AdminLoginRouteImport } from './routes/admin.login'
+import { Route as AdminChangePasswordRouteImport } from './routes/admin.change-password'
 import { Route as ProHubProjectsProjectIdRouteImport } from './routes/pro-hub.projects.$projectId'
 import { Route as DashboardOrdersNewRouteImport } from './routes/dashboard.orders.new'
 import { Route as DashboardOrdersOrderIdRouteImport } from './routes/dashboard.orders.$orderId'
@@ -164,6 +166,16 @@ const DashboardBundlesRoute = DashboardBundlesRouteImport.update({
   path: '/bundles',
   getParentRoute: () => DashboardRoute,
 } as any)
+const AdminLoginRoute = AdminLoginRouteImport.update({
+  id: '/admin/login',
+  path: '/admin/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminChangePasswordRoute = AdminChangePasswordRouteImport.update({
+  id: '/admin/change-password',
+  path: '/admin/change-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ProHubProjectsProjectIdRoute = ProHubProjectsProjectIdRouteImport.update({
   id: '/$projectId',
   path: '/$projectId',
@@ -195,6 +207,8 @@ export interface FileRoutesByFullPath {
   '/marine': typeof MarineRoute
   '/pro-hub': typeof ProHubRouteWithChildren
   '/products': typeof ProductsRoute
+  '/admin/change-password': typeof AdminChangePasswordRoute
+  '/admin/login': typeof AdminLoginRoute
   '/dashboard/bundles': typeof DashboardBundlesRoute
   '/dashboard/clients': typeof DashboardClientsRoute
   '/dashboard/followups': typeof DashboardFollowupsRoute
@@ -224,6 +238,8 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/marine': typeof MarineRoute
   '/products': typeof ProductsRoute
+  '/admin/change-password': typeof AdminChangePasswordRoute
+  '/admin/login': typeof AdminLoginRoute
   '/dashboard/bundles': typeof DashboardBundlesRoute
   '/dashboard/clients': typeof DashboardClientsRoute
   '/dashboard/followups': typeof DashboardFollowupsRoute
@@ -255,6 +271,8 @@ export interface FileRoutesById {
   '/marine': typeof MarineRoute
   '/pro-hub': typeof ProHubRouteWithChildren
   '/products': typeof ProductsRoute
+  '/admin/change-password': typeof AdminChangePasswordRoute
+  '/admin/login': typeof AdminLoginRoute
   '/dashboard/bundles': typeof DashboardBundlesRoute
   '/dashboard/clients': typeof DashboardClientsRoute
   '/dashboard/followups': typeof DashboardFollowupsRoute
@@ -287,6 +305,8 @@ export interface FileRouteTypes {
     | '/marine'
     | '/pro-hub'
     | '/products'
+    | '/admin/change-password'
+    | '/admin/login'
     | '/dashboard/bundles'
     | '/dashboard/clients'
     | '/dashboard/followups'
@@ -316,6 +336,8 @@ export interface FileRouteTypes {
     | '/login'
     | '/marine'
     | '/products'
+    | '/admin/change-password'
+    | '/admin/login'
     | '/dashboard/bundles'
     | '/dashboard/clients'
     | '/dashboard/followups'
@@ -346,6 +368,8 @@ export interface FileRouteTypes {
     | '/marine'
     | '/pro-hub'
     | '/products'
+    | '/admin/change-password'
+    | '/admin/login'
     | '/dashboard/bundles'
     | '/dashboard/clients'
     | '/dashboard/followups'
@@ -377,6 +401,8 @@ export interface RootRouteChildren {
   MarineRoute: typeof MarineRoute
   ProHubRoute: typeof ProHubRouteWithChildren
   ProductsRoute: typeof ProductsRoute
+  AdminChangePasswordRoute: typeof AdminChangePasswordRoute
+  AdminLoginRoute: typeof AdminLoginRoute
   OrderConfirmationOrderIdRoute: typeof OrderConfirmationOrderIdRoute
 }
 
@@ -557,6 +583,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardBundlesRouteImport
       parentRoute: typeof DashboardRoute
     }
+    '/admin/login': {
+      id: '/admin/login'
+      path: '/admin/login'
+      fullPath: '/admin/login'
+      preLoaderRoute: typeof AdminLoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/change-password': {
+      id: '/admin/change-password'
+      path: '/admin/change-password'
+      fullPath: '/admin/change-password'
+      preLoaderRoute: typeof AdminChangePasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/pro-hub/projects/$projectId': {
       id: '/pro-hub/projects/$projectId'
       path: '/$projectId'
@@ -661,8 +701,19 @@ const rootRouteChildren: RootRouteChildren = {
   MarineRoute: MarineRoute,
   ProHubRoute: ProHubRouteWithChildren,
   ProductsRoute: ProductsRoute,
+  AdminChangePasswordRoute: AdminChangePasswordRoute,
+  AdminLoginRoute: AdminLoginRoute,
   OrderConfirmationOrderIdRoute: OrderConfirmationOrderIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { createStart } from '@tanstack/react-start'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+  }
+}
