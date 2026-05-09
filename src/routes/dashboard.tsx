@@ -3,42 +3,28 @@ import { useEffect } from "react";
 import { Header } from "@/components/Header";
 import { useAuth } from "@/lib/auth";
 import { Card } from "@/components/ui/card";
-import { Loader2, Package, Users, ClipboardList, LayoutDashboard, Boxes, PhoneCall } from "lucide-react";
+import { Loader2, Package, Users, ClipboardList, LayoutDashboard, Boxes, PhoneCall, Palette } from "lucide-react";
 
 export const Route = createFileRoute("/dashboard")({
   component: DashboardLayout,
 });
 
 function DashboardLayout() {
-  const { user, role, loading } = useAuth();
+  const { user, role, mustChangePassword, loading } = useAuth();
   const navigate = useNavigate();
   const loc = useLocation();
 
   useEffect(() => {
-    if (!loading && !user) navigate({ to: "/login" });
-  }, [loading, user, navigate]);
+    if (loading) return;
+    if (!user) return navigate({ to: "/admin/login" });
+    if (mustChangePassword) return navigate({ to: "/admin/change-password" });
+    if (role && role !== "admin") return navigate({ to: "/pro-hub" });
+  }, [loading, user, role, mustChangePassword, navigate]);
 
-  if (loading || !user) {
+  if (loading || !user || role !== "admin") {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-accent" />
-      </div>
-    );
-  }
-
-  if (role === "pending") {
-    return (
-      <div className="min-h-screen bg-secondary">
-        <Header />
-        <div className="container mx-auto max-w-xl px-4 py-16">
-          <Card className="border-l-4 border-l-warning p-8 text-center">
-            <h1 className="text-2xl font-bold text-primary">Account Pending Approval</h1>
-            <p className="mt-3 text-muted-foreground">
-              Thanks for applying. A Sunburst team member will verify your contractor account
-              shortly. You'll get an email once approved.
-            </p>
-          </Card>
-        </div>
       </div>
     );
   }
@@ -50,6 +36,7 @@ function DashboardLayout() {
     { to: "/dashboard/clients", label: "Clients", icon: Users },
     { to: "/dashboard/products", label: "Products", icon: Package },
     { to: "/dashboard/bundles", label: "Bundles", icon: Boxes },
+    { to: "/dashboard/colors", label: "Color Catalog", icon: Palette },
   ];
 
   const isOverview = loc.pathname === "/dashboard" || loc.pathname === "/dashboard/";
