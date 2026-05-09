@@ -32,6 +32,7 @@ import { Route as OrderConfirmationOrderIdRouteImport } from './routes/order-con
 import { Route as DashboardProductsRouteImport } from './routes/dashboard.products'
 import { Route as DashboardOrdersRouteImport } from './routes/dashboard.orders'
 import { Route as DashboardFollowupsRouteImport } from './routes/dashboard.followups'
+import { Route as DashboardColorsRouteImport } from './routes/dashboard.colors'
 import { Route as DashboardClientsRouteImport } from './routes/dashboard.clients'
 import { Route as DashboardBundlesRouteImport } from './routes/dashboard.bundles'
 import { Route as AdminLoginRouteImport } from './routes/admin.login'
@@ -156,6 +157,11 @@ const DashboardFollowupsRoute = DashboardFollowupsRouteImport.update({
   path: '/followups',
   getParentRoute: () => DashboardRoute,
 } as any)
+const DashboardColorsRoute = DashboardColorsRouteImport.update({
+  id: '/colors',
+  path: '/colors',
+  getParentRoute: () => DashboardRoute,
+} as any)
 const DashboardClientsRoute = DashboardClientsRouteImport.update({
   id: '/clients',
   path: '/clients',
@@ -211,6 +217,7 @@ export interface FileRoutesByFullPath {
   '/admin/login': typeof AdminLoginRoute
   '/dashboard/bundles': typeof DashboardBundlesRoute
   '/dashboard/clients': typeof DashboardClientsRoute
+  '/dashboard/colors': typeof DashboardColorsRoute
   '/dashboard/followups': typeof DashboardFollowupsRoute
   '/dashboard/orders': typeof DashboardOrdersRouteWithChildren
   '/dashboard/products': typeof DashboardProductsRoute
@@ -242,6 +249,7 @@ export interface FileRoutesByTo {
   '/admin/login': typeof AdminLoginRoute
   '/dashboard/bundles': typeof DashboardBundlesRoute
   '/dashboard/clients': typeof DashboardClientsRoute
+  '/dashboard/colors': typeof DashboardColorsRoute
   '/dashboard/followups': typeof DashboardFollowupsRoute
   '/dashboard/orders': typeof DashboardOrdersRouteWithChildren
   '/dashboard/products': typeof DashboardProductsRoute
@@ -275,6 +283,7 @@ export interface FileRoutesById {
   '/admin/login': typeof AdminLoginRoute
   '/dashboard/bundles': typeof DashboardBundlesRoute
   '/dashboard/clients': typeof DashboardClientsRoute
+  '/dashboard/colors': typeof DashboardColorsRoute
   '/dashboard/followups': typeof DashboardFollowupsRoute
   '/dashboard/orders': typeof DashboardOrdersRouteWithChildren
   '/dashboard/products': typeof DashboardProductsRoute
@@ -309,6 +318,7 @@ export interface FileRouteTypes {
     | '/admin/login'
     | '/dashboard/bundles'
     | '/dashboard/clients'
+    | '/dashboard/colors'
     | '/dashboard/followups'
     | '/dashboard/orders'
     | '/dashboard/products'
@@ -340,6 +350,7 @@ export interface FileRouteTypes {
     | '/admin/login'
     | '/dashboard/bundles'
     | '/dashboard/clients'
+    | '/dashboard/colors'
     | '/dashboard/followups'
     | '/dashboard/orders'
     | '/dashboard/products'
@@ -372,6 +383,7 @@ export interface FileRouteTypes {
     | '/admin/login'
     | '/dashboard/bundles'
     | '/dashboard/clients'
+    | '/dashboard/colors'
     | '/dashboard/followups'
     | '/dashboard/orders'
     | '/dashboard/products'
@@ -569,6 +581,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardFollowupsRouteImport
       parentRoute: typeof DashboardRoute
     }
+    '/dashboard/colors': {
+      id: '/dashboard/colors'
+      path: '/colors'
+      fullPath: '/dashboard/colors'
+      preLoaderRoute: typeof DashboardColorsRouteImport
+      parentRoute: typeof DashboardRoute
+    }
     '/dashboard/clients': {
       id: '/dashboard/clients'
       path: '/clients'
@@ -638,6 +657,7 @@ const DashboardOrdersRouteWithChildren = DashboardOrdersRoute._addFileChildren(
 interface DashboardRouteChildren {
   DashboardBundlesRoute: typeof DashboardBundlesRoute
   DashboardClientsRoute: typeof DashboardClientsRoute
+  DashboardColorsRoute: typeof DashboardColorsRoute
   DashboardFollowupsRoute: typeof DashboardFollowupsRoute
   DashboardOrdersRoute: typeof DashboardOrdersRouteWithChildren
   DashboardProductsRoute: typeof DashboardProductsRoute
@@ -646,6 +666,7 @@ interface DashboardRouteChildren {
 const DashboardRouteChildren: DashboardRouteChildren = {
   DashboardBundlesRoute: DashboardBundlesRoute,
   DashboardClientsRoute: DashboardClientsRoute,
+  DashboardColorsRoute: DashboardColorsRoute,
   DashboardFollowupsRoute: DashboardFollowupsRoute,
   DashboardOrdersRoute: DashboardOrdersRouteWithChildren,
   DashboardProductsRoute: DashboardProductsRoute,
@@ -708,3 +729,12 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { createStart } from '@tanstack/react-start'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+  }
+}
