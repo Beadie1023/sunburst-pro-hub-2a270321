@@ -24,9 +24,9 @@ function LoginPage() {
     setLoading(true);
     const { error } = await signIn(fd.get("email") as string, fd.get("password") as string);
     setLoading(false);
-    if (error) return toast.error(error);
+    if (error) return toast.error(error, { duration: 8000 });
     toast.success("Welcome back");
-    navigate({ to: "/dashboard" });
+    navigate({ to: "/pro-hub" });
   };
 
   const handleSignUp = async (e: FormEvent<HTMLFormElement>) => {
