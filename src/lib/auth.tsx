@@ -78,14 +78,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signUp: AuthCtx["signUp"] = async (email, password, meta) => {
-    const { error } = await supabase.auth.signUp({
+    const redirectTo = `${window.location.origin}/pro-hub`;
+    console.log("[auth.signUp] start", { email, redirectTo });
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      options: {
-        emailRedirectTo: `${window.location.origin}/dashboard`,
-        data: meta,
-      },
+      options: { emailRedirectTo: redirectTo, data: meta },
     });
+    console.log("[auth.signUp] result", { userId: data?.user?.id, error: error?.message });
     return { error: error?.message ?? null };
   };
 
