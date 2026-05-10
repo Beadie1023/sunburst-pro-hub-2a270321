@@ -24,32 +24,60 @@ function LoginPage() {
     setLoading(true);
     const { error } = await signIn(fd.get("email") as string, fd.get("password") as string);
     setLoading(false);
-    if (error) return toast.error(error, { duration: 8000 });
+    if (error) {
+      console.error("[signin] error:", error);
+      const friendly = /invalid login credentials/i.test(error)
+        ? "Invalid email or password. If you just signed up, please verify your email first."
+        : /email not confirmed/i.test(error)
+        ? "Please verify your email address. Check your inbox (and spam folder)."
+        : error;
+      return toast.error(friendly, { duration: 9000 });
+    }
     toast.success("Welcome back");
     navigate({ to: "/pro-hub" });
   };
 
   const handleSignUp = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const fd = new FormData(e.currentTarget);
-    const email = fd.get("email") as string;
-    setLoading(true);
-    const { error } = await signUp(
-      email,
-      fd.get("password") as string,
-      {
-        full_name: fd.get("full_name") as string,
-        company_name: fd.get("company_name") as string,
-        phone: fd.get("phone") as string,
-      },
-    );
-    setLoading(false);
-    if (error) {
-      toast.error(error, { duration: 8000 });
-      return;
+    const form = e.currentTarget;
+    const fd = new FormData(form);
+    const email = (fd.get("email") as string)?.trim();
+    const password = fd.get("password") as string;
+    const full_name = (fd.get("full_name") as string)?.trim();
+    const company_name = (fd.get("company_name") as string)?.trim();
+    const phone = (fd.get("phone") as string)?.trim();
+
+    if (!email || !password || !full_name || !company_name || !phone) {
+      return toast.error("Please fill in every field.");
     }
-    toast.success(`Account created! Check ${email} to verify your address, then sign in.`, { duration: 9000 });
-    (e.currentTarget as HTMLFormElement).reset();
+
+    setLoading(true);
+    try {
+      console.log("[signup] submitting", { email });
+      const { error } = await signUp(email, password, { full_name, company_name, phone });
+      console.log("[signup] response error:", error);
+      if (error) {
+        const friendly = /already registered|already been registered|user already/i.test(error)
+          ? "An account with this email already exists. Try signing in or resetting your password."
+          : /weak.password|pwned/i.test(error)
+          ? "That password is too common. Please choose a stronger one."
+          : /invalid.*email/i.test(error)
+          ? "That email address looks invalid. Please double-check it."
+          : error;
+        toast.error(friendly, { duration: 10000 });
+        return;
+      }
+      toast.success(
+        `Account created! Check ${email} to verify your address, then sign in.`,
+        { duration: 10000 },
+      );
+      form?.reset?.();
+    } catch (err) {
+      console.error("[signup] unexpected error:", err);
+      toast.error("Something went wrong creating your account. Please try again.", { duration: 9000 });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
