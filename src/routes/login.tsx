@@ -32,9 +32,10 @@ function LoginPage() {
   const handleSignUp = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
+    const email = fd.get("email") as string;
     setLoading(true);
     const { error } = await signUp(
-      fd.get("email") as string,
+      email,
       fd.get("password") as string,
       {
         full_name: fd.get("full_name") as string,
@@ -43,9 +44,12 @@ function LoginPage() {
       },
     );
     setLoading(false);
-    if (error) return toast.error(error);
-    toast.success("Account created — pending admin approval");
-    navigate({ to: "/dashboard" });
+    if (error) {
+      toast.error(error, { duration: 8000 });
+      return;
+    }
+    toast.success(`Account created! Check ${email} to verify your address, then sign in.`, { duration: 9000 });
+    (e.currentTarget as HTMLFormElement).reset();
   };
 
   return (
