@@ -79,14 +79,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signUp: AuthCtx["signUp"] = async (email, password, meta) => {
     const redirectTo = `${window.location.origin}/pro-hub`;
-    console.log("[auth.signUp] start", { email, redirectTo });
+    console.log("[auth.signUp] start", { email, redirectTo, supabaseUrl: import.meta.env.VITE_SUPABASE_URL });
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: { emailRedirectTo: redirectTo, data: meta },
     });
-    console.log("[auth.signUp] result", { userId: data?.user?.id, error: error?.message });
-    return { error: error?.message ?? null };
+    console.log("[auth.signUp] result", {
+      userId: data?.user?.id,
+      identitiesLen: data?.user?.identities?.length,
+      sessionPresent: !!data?.session,
+      error: error?.message,
+    });
+    if (error) return { error: error.message };
+    // Supabase obfuscates duplicate-email signups: returns a fake user with
+    // identities=[] and no session. Detect and surface as a real error.
+    if (data?.user && (data.user.identities?.length ?? 0) === 0) {
+      return { error: "User already registered" };
+    }
+    return { error: null };
   };
 
   const signOut = async () => {
