@@ -41,6 +41,7 @@ import { Route as AdminChangePasswordRouteImport } from './routes/admin.change-p
 import { Route as ProHubProjectsProjectIdRouteImport } from './routes/pro-hub.projects.$projectId'
 import { Route as DashboardOrdersNewRouteImport } from './routes/dashboard.orders.new'
 import { Route as DashboardOrdersOrderIdRouteImport } from './routes/dashboard.orders.$orderId'
+import { Route as DashboardColorsImportRouteImport } from './routes/dashboard.colors.import'
 
 const ProductsRoute = ProductsRouteImport.update({
   id: '/products',
@@ -203,6 +204,11 @@ const DashboardOrdersOrderIdRoute = DashboardOrdersOrderIdRouteImport.update({
   path: '/$orderId',
   getParentRoute: () => DashboardOrdersRoute,
 } as any)
+const DashboardColorsImportRoute = DashboardColorsImportRouteImport.update({
+  id: '/import',
+  path: '/import',
+  getParentRoute: () => DashboardColorsRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -223,7 +229,7 @@ export interface FileRoutesByFullPath {
   '/admin/login': typeof AdminLoginRoute
   '/dashboard/bundles': typeof DashboardBundlesRoute
   '/dashboard/clients': typeof DashboardClientsRoute
-  '/dashboard/colors': typeof DashboardColorsRoute
+  '/dashboard/colors': typeof DashboardColorsRouteWithChildren
   '/dashboard/followups': typeof DashboardFollowupsRoute
   '/dashboard/orders': typeof DashboardOrdersRouteWithChildren
   '/dashboard/products': typeof DashboardProductsRoute
@@ -234,6 +240,7 @@ export interface FileRoutesByFullPath {
   '/pro-hub/reorder': typeof ProHubReorderRoute
   '/pro-hub/saved': typeof ProHubSavedRoute
   '/pro-hub/': typeof ProHubIndexRoute
+  '/dashboard/colors/import': typeof DashboardColorsImportRoute
   '/dashboard/orders/$orderId': typeof DashboardOrdersOrderIdRoute
   '/dashboard/orders/new': typeof DashboardOrdersNewRoute
   '/pro-hub/projects/$projectId': typeof ProHubProjectsProjectIdRoute
@@ -256,7 +263,7 @@ export interface FileRoutesByTo {
   '/admin/login': typeof AdminLoginRoute
   '/dashboard/bundles': typeof DashboardBundlesRoute
   '/dashboard/clients': typeof DashboardClientsRoute
-  '/dashboard/colors': typeof DashboardColorsRoute
+  '/dashboard/colors': typeof DashboardColorsRouteWithChildren
   '/dashboard/followups': typeof DashboardFollowupsRoute
   '/dashboard/orders': typeof DashboardOrdersRouteWithChildren
   '/dashboard/products': typeof DashboardProductsRoute
@@ -267,6 +274,7 @@ export interface FileRoutesByTo {
   '/pro-hub/reorder': typeof ProHubReorderRoute
   '/pro-hub/saved': typeof ProHubSavedRoute
   '/pro-hub': typeof ProHubIndexRoute
+  '/dashboard/colors/import': typeof DashboardColorsImportRoute
   '/dashboard/orders/$orderId': typeof DashboardOrdersOrderIdRoute
   '/dashboard/orders/new': typeof DashboardOrdersNewRoute
   '/pro-hub/projects/$projectId': typeof ProHubProjectsProjectIdRoute
@@ -291,7 +299,7 @@ export interface FileRoutesById {
   '/admin/login': typeof AdminLoginRoute
   '/dashboard/bundles': typeof DashboardBundlesRoute
   '/dashboard/clients': typeof DashboardClientsRoute
-  '/dashboard/colors': typeof DashboardColorsRoute
+  '/dashboard/colors': typeof DashboardColorsRouteWithChildren
   '/dashboard/followups': typeof DashboardFollowupsRoute
   '/dashboard/orders': typeof DashboardOrdersRouteWithChildren
   '/dashboard/products': typeof DashboardProductsRoute
@@ -302,6 +310,7 @@ export interface FileRoutesById {
   '/pro-hub/reorder': typeof ProHubReorderRoute
   '/pro-hub/saved': typeof ProHubSavedRoute
   '/pro-hub/': typeof ProHubIndexRoute
+  '/dashboard/colors/import': typeof DashboardColorsImportRoute
   '/dashboard/orders/$orderId': typeof DashboardOrdersOrderIdRoute
   '/dashboard/orders/new': typeof DashboardOrdersNewRoute
   '/pro-hub/projects/$projectId': typeof ProHubProjectsProjectIdRoute
@@ -338,6 +347,7 @@ export interface FileRouteTypes {
     | '/pro-hub/reorder'
     | '/pro-hub/saved'
     | '/pro-hub/'
+    | '/dashboard/colors/import'
     | '/dashboard/orders/$orderId'
     | '/dashboard/orders/new'
     | '/pro-hub/projects/$projectId'
@@ -371,6 +381,7 @@ export interface FileRouteTypes {
     | '/pro-hub/reorder'
     | '/pro-hub/saved'
     | '/pro-hub'
+    | '/dashboard/colors/import'
     | '/dashboard/orders/$orderId'
     | '/dashboard/orders/new'
     | '/pro-hub/projects/$projectId'
@@ -405,6 +416,7 @@ export interface FileRouteTypes {
     | '/pro-hub/reorder'
     | '/pro-hub/saved'
     | '/pro-hub/'
+    | '/dashboard/colors/import'
     | '/dashboard/orders/$orderId'
     | '/dashboard/orders/new'
     | '/pro-hub/projects/$projectId'
@@ -656,8 +668,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardOrdersOrderIdRouteImport
       parentRoute: typeof DashboardOrdersRoute
     }
+    '/dashboard/colors/import': {
+      id: '/dashboard/colors/import'
+      path: '/import'
+      fullPath: '/dashboard/colors/import'
+      preLoaderRoute: typeof DashboardColorsImportRouteImport
+      parentRoute: typeof DashboardColorsRoute
+    }
   }
 }
+
+interface DashboardColorsRouteChildren {
+  DashboardColorsImportRoute: typeof DashboardColorsImportRoute
+}
+
+const DashboardColorsRouteChildren: DashboardColorsRouteChildren = {
+  DashboardColorsImportRoute: DashboardColorsImportRoute,
+}
+
+const DashboardColorsRouteWithChildren = DashboardColorsRoute._addFileChildren(
+  DashboardColorsRouteChildren,
+)
 
 interface DashboardOrdersRouteChildren {
   DashboardOrdersOrderIdRoute: typeof DashboardOrdersOrderIdRoute
@@ -676,7 +707,7 @@ const DashboardOrdersRouteWithChildren = DashboardOrdersRoute._addFileChildren(
 interface DashboardRouteChildren {
   DashboardBundlesRoute: typeof DashboardBundlesRoute
   DashboardClientsRoute: typeof DashboardClientsRoute
-  DashboardColorsRoute: typeof DashboardColorsRoute
+  DashboardColorsRoute: typeof DashboardColorsRouteWithChildren
   DashboardFollowupsRoute: typeof DashboardFollowupsRoute
   DashboardOrdersRoute: typeof DashboardOrdersRouteWithChildren
   DashboardProductsRoute: typeof DashboardProductsRoute
@@ -685,7 +716,7 @@ interface DashboardRouteChildren {
 const DashboardRouteChildren: DashboardRouteChildren = {
   DashboardBundlesRoute: DashboardBundlesRoute,
   DashboardClientsRoute: DashboardClientsRoute,
-  DashboardColorsRoute: DashboardColorsRoute,
+  DashboardColorsRoute: DashboardColorsRouteWithChildren,
   DashboardFollowupsRoute: DashboardFollowupsRoute,
   DashboardOrdersRoute: DashboardOrdersRouteWithChildren,
   DashboardProductsRoute: DashboardProductsRoute,

@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
@@ -21,7 +21,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { toast } from "sonner";
-import { Loader2, Search, Pencil, Plus } from "lucide-react";
+import { Loader2, Search, Pencil, Plus, Upload } from "lucide-react";
 
 export const Route = createFileRoute("/dashboard/colors")({
   component: ColorAdminPage,
@@ -127,12 +127,19 @@ function ColorAdminPage() {
             Curate the full Sunburst swatch library — edit metadata, toggle stock and visibility.
           </p>
         </div>
-        <Button
-          onClick={() => setCreating(true)}
-          className="bg-accent text-accent-foreground hover:bg-accent/90"
-        >
-          <Plus className="mr-1.5 h-4 w-4" /> New color
-        </Button>
+        <div className="flex gap-2">
+          <Button asChild variant="outline">
+            <Link to="/dashboard/colors/import">
+              <Upload className="mr-1.5 h-4 w-4" /> Import CSV
+            </Link>
+          </Button>
+          <Button
+            onClick={() => setCreating(true)}
+            className="bg-accent text-accent-foreground hover:bg-accent/90"
+          >
+            <Plus className="mr-1.5 h-4 w-4" /> New color
+          </Button>
+        </div>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-4">
