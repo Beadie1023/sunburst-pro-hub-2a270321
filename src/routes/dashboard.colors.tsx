@@ -21,7 +21,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { toast } from "sonner";
-import { Loader2, Search, Pencil, Plus } from "lucide-react";
+import { Loader2, Search, Pencil, Plus, Upload } from "lucide-react";
 
 export const Route = createFileRoute("/dashboard/colors")({
   component: ColorAdminPage,
