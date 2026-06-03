@@ -502,8 +502,12 @@ export type Database = {
           name: string
           notes: string | null
           status: string
+          subtotal: number
+          total: number
           updated_at: string
           user_id: string
+          vat_amount: number
+          vat_rate: number
           wall_height: number | null
           wall_width: number | null
         }
@@ -515,8 +519,12 @@ export type Database = {
           name: string
           notes?: string | null
           status?: string
+          subtotal?: number
+          total?: number
           updated_at?: string
           user_id: string
+          vat_amount?: number
+          vat_rate?: number
           wall_height?: number | null
           wall_width?: number | null
         }
@@ -528,8 +536,12 @@ export type Database = {
           name?: string
           notes?: string | null
           status?: string
+          subtotal?: number
+          total?: number
           updated_at?: string
           user_id?: string
+          vat_amount?: number
+          vat_rate?: number
           wall_height?: number | null
           wall_width?: number | null
         }
