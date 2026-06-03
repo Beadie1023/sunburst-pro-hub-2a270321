@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Loader2, Trash2, Calculator } from "lucide-react";
+import { ArrowLeft, Loader2, Trash2, Calculator, Plus, Search, Package } from "lucide-react";
 
 export const Route = createFileRoute("/pro-hub/projects/$projectId")({
   component: ProjectDetail,
@@ -19,11 +19,20 @@ interface Project {
   id: string; name: string; client_name: string | null; location: string | null;
   status: string; notes: string | null;
   wall_width: number | null; wall_height: number | null;
+  subtotal: number; vat_rate: number; vat_amount: number; total: number;
 }
 interface ProjectColor {
   id: string; finish: string; gallons: number;
   paint_color_id: string;
   paint_colors: { code: string; name: string; hex: string; coverage_sqft: number } | null;
+}
+interface ProductLite {
+  id: string; sku: string; name: string; unit: string;
+  price: number | null; retail_price: number | null; contractor_price: number | null;
+}
+interface ProjectItem {
+  id: string; project_id: string; product_id: string; quantity: number;
+  products: ProductLite | null;
 }
 
 const STATUSES = ["draft", "quoted", "ordered", "in_progress", "completed"];
@@ -31,37 +40,111 @@ const VAT = 0.10;
 // Indicative gallon price for early planning; real pricing comes from order placement.
 const GALLON_PRICE = 65;
 
+const unitPrice = (p: ProductLite | null, isContractor: boolean): number => {
+  if (!p) return 0;
+  const pref = isContractor ? p.contractor_price : p.retail_price;
+  return Number(pref ?? p.price ?? p.retail_price ?? 0);
+};
+
 function ProjectDetail() {
   const { projectId } = useParams({ from: "/pro-hub/projects/$projectId" });
-  const { user } = useAuth();
+  const { user, role } = useAuth();
+  const isContractor = role === "contractor" || role === "admin";
   const [project, setProject] = useState<Project | null>(null);
   const [colors, setColors] = useState<ProjectColor[]>([]);
+  const [items, setItems] = useState<ProjectItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
+  // Product search state
+  const [search, setSearch] = useState("");
+  const [searchResults, setSearchResults] = useState<ProductLite[]>([]);
+  const [searching, setSearching] = useState(false);
+
   const load = async () => {
-    const [{ data: p }, { data: pc }] = await Promise.all([
+    const [{ data: p }, { data: pc }, { data: pi }] = await Promise.all([
       supabase.from("projects").select("*").eq("id", projectId).maybeSingle(),
       supabase.from("project_colors").select("*, paint_colors(code,name,hex,coverage_sqft)").eq("project_id", projectId),
+      supabase.from("project_items").select("id,project_id,product_id,quantity").eq("project_id", projectId),
     ]);
     setProject(p as Project | null);
     setColors((pc ?? []) as ProjectColor[]);
+    const rawItems = (pi ?? []) as Array<{ id: string; project_id: string; product_id: string; quantity: number }>;
+    if (rawItems.length) {
+      const ids = Array.from(new Set(rawItems.map((r) => r.product_id)));
+      const { data: prods } = await supabase
+        .from("products")
+        .select("id,sku,name,unit,price,retail_price,contractor_price")
+        .in("id", ids);
+      const map = new Map((prods ?? []).map((x) => [x.id as string, x as unknown as ProductLite]));
+      setItems(rawItems.map((r) => ({ ...r, products: map.get(r.product_id) ?? null })));
+    } else {
+      setItems([]);
+    }
     setLoading(false);
   };
+
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [projectId]);
+
+  // Debounced product search
+  useEffect(() => {
+    const q = search.trim();
+    if (!q) { setSearchResults([]); return; }
+    setSearching(true);
+    const t = setTimeout(async () => {
+      const { data } = await supabase
+        .from("products")
+        .select("id,sku,name,unit,price,retail_price,contractor_price")
+        .or(`name.ilike.%${q}%,sku.ilike.%${q}%`)
+        .limit(8);
+      setSearchResults((data ?? []) as ProductLite[]);
+      setSearching(false);
+    }, 200);
+    return () => clearTimeout(t);
+  }, [search]);
 
   const wallArea = useMemo(() => {
     if (!project) return 0;
     return Number(project.wall_width ?? 0) * Number(project.wall_height ?? 0);
   }, [project]);
 
-  const totals = useMemo(() => {
+  // Paint calculator (indicative) — unchanged
+  const paintTotals = useMemo(() => {
     const totalGallons = colors.reduce((s, c) => s + Number(c.gallons ?? 0), 0);
     const subtotal = totalGallons * GALLON_PRICE;
     const vat = +(subtotal * VAT).toFixed(2);
     const total = +(subtotal + vat).toFixed(2);
     return { totalGallons, subtotal: +subtotal.toFixed(2), vat, total };
   }, [colors]);
+
+  // Quote totals (from product line items)
+  const quoteTotals = useMemo(() => {
+    const subtotal = items.reduce(
+      (s, it) => s + Number(it.quantity) * unitPrice(it.products, isContractor),
+      0,
+    );
+    const sub = +subtotal.toFixed(2);
+    const vat = +(sub * VAT).toFixed(2);
+    const total = +(sub + vat).toFixed(2);
+    return { subtotal: sub, vat, total };
+  }, [items, isContractor]);
+
+  // Persist quote totals when they change
+  useEffect(() => {
+    if (!project) return;
+    if (
+      Number(project.subtotal) === quoteTotals.subtotal &&
+      Number(project.vat_amount) === quoteTotals.vat &&
+      Number(project.total) === quoteTotals.total
+    ) return;
+    supabase
+      .from("projects")
+      .update({ subtotal: quoteTotals.subtotal, vat_rate: VAT, vat_amount: quoteTotals.vat, total: quoteTotals.total })
+      .eq("id", project.id)
+      .then(({ error }) => { if (error) toast.error(error.message); });
+    setProject({ ...project, subtotal: quoteTotals.subtotal, vat_amount: quoteTotals.vat, total: quoteTotals.total, vat_rate: VAT });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [quoteTotals.subtotal, quoteTotals.vat, quoteTotals.total]);
 
   // Auto-suggest gallons from wall area (round up)
   const suggestedGallons = (coverage: number) => wallArea > 0 ? Math.ceil(wallArea / Math.max(1, coverage)) : 1;
@@ -85,6 +168,38 @@ function ProjectDetail() {
     const { error } = await supabase.from("project_colors").delete().eq("id", id);
     if (error) return toast.error(error.message);
     setColors((cs) => cs.filter((c) => c.id !== id));
+  };
+
+  const addItem = async (product: ProductLite) => {
+    // If already present, bump quantity
+    const existing = items.find((i) => i.product_id === product.id);
+    if (existing) {
+      await updateItemQty(existing.id, existing.quantity + 1);
+      setSearch(""); setSearchResults([]);
+      return;
+    }
+    const { data, error } = await supabase
+      .from("project_items")
+      .insert({ project_id: projectId, product_id: product.id, quantity: 1 })
+      .select("id,project_id,product_id,quantity")
+      .single();
+    if (error) return toast.error(error.message);
+    const row = data as { id: string; project_id: string; product_id: string; quantity: number };
+    setItems((xs) => [...xs, { ...row, products: product }]);
+    setSearch(""); setSearchResults([]);
+  };
+
+  const updateItemQty = async (id: string, qty: number) => {
+    const q = Math.max(1, Math.floor(qty || 1));
+    setItems((xs) => xs.map((i) => (i.id === id ? { ...i, quantity: q } : i)));
+    const { error } = await supabase.from("project_items").update({ quantity: q }).eq("id", id);
+    if (error) toast.error(error.message);
+  };
+
+  const removeItem = async (id: string) => {
+    const { error } = await supabase.from("project_items").delete().eq("id", id);
+    if (error) return toast.error(error.message);
+    setItems((xs) => xs.filter((i) => i.id !== id));
   };
 
   if (loading) return <div className="flex justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-accent" /></div>;
@@ -135,12 +250,12 @@ function ProjectDetail() {
           </div>
           <div className="rounded-md bg-muted/40 p-3 text-sm">
             <div className="flex justify-between"><span className="text-muted-foreground">Wall area</span><span className="font-semibold">{wallArea.toLocaleString()} sq ft</span></div>
-            <div className="flex justify-between"><span className="text-muted-foreground">Selected gallons</span><span className="font-semibold">{totals.totalGallons}</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">Selected gallons</span><span className="font-semibold">{paintTotals.totalGallons}</span></div>
           </div>
           <div className="space-y-1 border-t border-border pt-3 text-sm">
-            <div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span>${totals.subtotal.toFixed(2)}</span></div>
-            <div className="flex justify-between"><span className="text-muted-foreground">VAT (10%)</span><span>${totals.vat.toFixed(2)}</span></div>
-            <div className="flex justify-between text-base font-bold text-primary"><span>Estimate</span><span>${totals.total.toFixed(2)}</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span>${paintTotals.subtotal.toFixed(2)}</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">VAT (10%)</span><span>${paintTotals.vat.toFixed(2)}</span></div>
+            <div className="flex justify-between text-base font-bold text-primary"><span>Estimate</span><span>${paintTotals.total.toFixed(2)}</span></div>
             <p className="text-[10px] text-muted-foreground">Estimate at indicative ${GALLON_PRICE}/gal. Final pricing applies your contractor tier at checkout.</p>
           </div>
           {saving && <div className="text-[10px] text-muted-foreground">Saving…</div>}
@@ -197,6 +312,87 @@ function ProjectDetail() {
           )}
         </Card>
       </div>
+
+      {/* Quote Line Items */}
+      <Card className="p-5">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Package className="h-4 w-4 text-accent" />
+            <h2 className="font-semibold">Quote Line Items</h2>
+            {isContractor && <span className="rounded-full bg-accent/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-accent">Pro pricing</span>}
+          </div>
+          <div className="relative w-full max-w-sm">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search products by name or SKU…"
+              className="pl-8"
+            />
+            {(searchResults.length > 0 || searching) && (
+              <div className="absolute z-20 mt-1 max-h-72 w-full overflow-auto rounded-md border border-border bg-popover shadow-md">
+                {searching && <div className="p-3 text-xs text-muted-foreground">Searching…</div>}
+                {searchResults.map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => addItem(p)}
+                    className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left hover:bg-accent/10"
+                  >
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-semibold">{p.name}</div>
+                      <div className="text-[10px] text-muted-foreground">{p.sku} · {p.unit}</div>
+                    </div>
+                    <div className="shrink-0 text-right text-xs">
+                      <div className="font-semibold">${unitPrice(p, isContractor).toFixed(2)}</div>
+                      <Plus className="ml-auto h-3 w-3 text-accent" />
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {items.length === 0 ? (
+          <div className="rounded-md border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+            No products on this quote yet. Search above to add line items.
+          </div>
+        ) : (
+          <ul className="divide-y divide-border">
+            {items.map((it) => {
+              const unit = unitPrice(it.products, isContractor);
+              const line = +(unit * it.quantity).toFixed(2);
+              return (
+                <li key={it.id} className="flex flex-wrap items-center gap-3 py-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="font-mono text-[10px] text-accent">{it.products?.sku}</div>
+                    <div className="truncate font-semibold">{it.products?.name ?? "Product unavailable"}</div>
+                    <div className="text-[10px] text-muted-foreground">${unit.toFixed(2)} / {it.products?.unit ?? "ea"}</div>
+                  </div>
+                  <Input
+                    type="number" min={1}
+                    value={it.quantity}
+                    onChange={(e) => updateItemQty(it.id, Number(e.target.value || 1))}
+                    className="w-20"
+                  />
+                  <div className="w-24 text-right font-semibold">${line.toFixed(2)}</div>
+                  <Button size="icon" variant="ghost" onClick={() => removeItem(it.id)} aria-label="Remove item">
+                    <Trash2 className="h-4 w-4 text-destructive" />
+                  </Button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+
+        <div className="mt-4 ml-auto max-w-xs space-y-1 border-t border-border pt-3 text-sm">
+          <div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span>${quoteTotals.subtotal.toFixed(2)}</span></div>
+          <div className="flex justify-between"><span className="text-muted-foreground">VAT (10%)</span><span>${quoteTotals.vat.toFixed(2)}</span></div>
+          <div className="flex justify-between text-base font-bold text-primary"><span>Quote Total</span><span>${quoteTotals.total.toFixed(2)}</span></div>
+        </div>
+      </Card>
+
 
       {/* Notes */}
       <Card className="p-5">
