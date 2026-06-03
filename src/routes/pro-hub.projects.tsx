@@ -114,8 +114,16 @@ function ProjectsPage() {
                   </span>
                 </div>
                 {p.location && <div className="mt-2 text-xs text-muted-foreground">📍 {p.location}</div>}
-                <div className="mt-3 text-[10px] uppercase tracking-wider text-muted-foreground">
-                  Updated {new Date(p.updated_at).toLocaleDateString()}
+                <div className="mt-3 flex items-end justify-between gap-2">
+                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                    Updated {new Date(p.updated_at).toLocaleDateString()}
+                  </div>
+                  {Number(p.total) > 0 && (
+                    <div className="text-right">
+                      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Quote total</div>
+                      <div className="text-sm font-bold text-primary">${Number(p.total).toFixed(2)}</div>
+                    </div>
+                  )}
                 </div>
               </Card>
             </Link>
