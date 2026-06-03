@@ -181,10 +181,11 @@ function ProjectDetail() {
     const { data, error } = await supabase
       .from("project_items")
       .insert({ project_id: projectId, product_id: product.id, quantity: 1 })
-      .select("*, products(id,sku,name,unit,price,retail_price,contractor_price)")
+      .select("id,project_id,product_id,quantity")
       .single();
     if (error) return toast.error(error.message);
-    setItems((xs) => [...xs, data as ProjectItem]);
+    const row = data as { id: string; project_id: string; product_id: string; quantity: number };
+    setItems((xs) => [...xs, { ...row, products: product }]);
     setSearch(""); setSearchResults([]);
   };
 
