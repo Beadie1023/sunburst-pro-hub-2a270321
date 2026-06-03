@@ -65,13 +65,25 @@ function ProjectDetail() {
     const [{ data: p }, { data: pc }, { data: pi }] = await Promise.all([
       supabase.from("projects").select("*").eq("id", projectId).maybeSingle(),
       supabase.from("project_colors").select("*, paint_colors(code,name,hex,coverage_sqft)").eq("project_id", projectId),
-      supabase.from("project_items").select("*, products(id,sku,name,unit,price,retail_price,contractor_price)").eq("project_id", projectId),
+      supabase.from("project_items").select("id,project_id,product_id,quantity").eq("project_id", projectId),
     ]);
     setProject(p as Project | null);
     setColors((pc ?? []) as ProjectColor[]);
-    setItems((pi ?? []) as ProjectItem[]);
+    const rawItems = (pi ?? []) as Array<{ id: string; project_id: string; product_id: string; quantity: number }>;
+    if (rawItems.length) {
+      const ids = Array.from(new Set(rawItems.map((r) => r.product_id)));
+      const { data: prods } = await supabase
+        .from("products")
+        .select("id,sku,name,unit,price,retail_price,contractor_price")
+        .in("id", ids);
+      const map = new Map((prods ?? []).map((x) => [x.id as string, x as unknown as ProductLite]));
+      setItems(rawItems.map((r) => ({ ...r, products: map.get(r.product_id) ?? null })));
+    } else {
+      setItems([]);
+    }
     setLoading(false);
   };
+
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [projectId]);
 
   // Debounced product search
