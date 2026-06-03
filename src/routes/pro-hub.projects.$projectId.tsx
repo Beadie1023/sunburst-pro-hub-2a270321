@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Loader2, Trash2, Calculator } from "lucide-react";
+import { ArrowLeft, Loader2, Trash2, Calculator, Plus, Search, Package } from "lucide-react";
 
 export const Route = createFileRoute("/pro-hub/projects/$projectId")({
   component: ProjectDetail,
@@ -19,17 +19,32 @@ interface Project {
   id: string; name: string; client_name: string | null; location: string | null;
   status: string; notes: string | null;
   wall_width: number | null; wall_height: number | null;
+  subtotal: number; vat_rate: number; vat_amount: number; total: number;
 }
 interface ProjectColor {
   id: string; finish: string; gallons: number;
   paint_color_id: string;
   paint_colors: { code: string; name: string; hex: string; coverage_sqft: number } | null;
 }
+interface ProductLite {
+  id: string; sku: string; name: string; unit: string;
+  price: number | null; retail_price: number | null; contractor_price: number | null;
+}
+interface ProjectItem {
+  id: string; project_id: string; product_id: string; quantity: number;
+  products: ProductLite | null;
+}
 
 const STATUSES = ["draft", "quoted", "ordered", "in_progress", "completed"];
 const VAT = 0.10;
 // Indicative gallon price for early planning; real pricing comes from order placement.
 const GALLON_PRICE = 65;
+
+const unitPrice = (p: ProductLite | null, isContractor: boolean): number => {
+  if (!p) return 0;
+  const pref = isContractor ? p.contractor_price : p.retail_price;
+  return Number(pref ?? p.price ?? p.retail_price ?? 0);
+};
 
 function ProjectDetail() {
   const { projectId } = useParams({ from: "/pro-hub/projects/$projectId" });
