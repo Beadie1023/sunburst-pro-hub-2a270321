@@ -313,6 +313,87 @@ function ProjectDetail() {
         </Card>
       </div>
 
+      {/* Quote Line Items */}
+      <Card className="p-5">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Package className="h-4 w-4 text-accent" />
+            <h2 className="font-semibold">Quote Line Items</h2>
+            {isContractor && <span className="rounded-full bg-accent/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-accent">Pro pricing</span>}
+          </div>
+          <div className="relative w-full max-w-sm">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search products by name or SKU…"
+              className="pl-8"
+            />
+            {(searchResults.length > 0 || searching) && (
+              <div className="absolute z-20 mt-1 max-h-72 w-full overflow-auto rounded-md border border-border bg-popover shadow-md">
+                {searching && <div className="p-3 text-xs text-muted-foreground">Searching…</div>}
+                {searchResults.map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => addItem(p)}
+                    className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left hover:bg-accent/10"
+                  >
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-semibold">{p.name}</div>
+                      <div className="text-[10px] text-muted-foreground">{p.sku} · {p.unit}</div>
+                    </div>
+                    <div className="shrink-0 text-right text-xs">
+                      <div className="font-semibold">${unitPrice(p, isContractor).toFixed(2)}</div>
+                      <Plus className="ml-auto h-3 w-3 text-accent" />
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {items.length === 0 ? (
+          <div className="rounded-md border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+            No products on this quote yet. Search above to add line items.
+          </div>
+        ) : (
+          <ul className="divide-y divide-border">
+            {items.map((it) => {
+              const unit = unitPrice(it.products, isContractor);
+              const line = +(unit * it.quantity).toFixed(2);
+              return (
+                <li key={it.id} className="flex flex-wrap items-center gap-3 py-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="font-mono text-[10px] text-accent">{it.products?.sku}</div>
+                    <div className="truncate font-semibold">{it.products?.name ?? "Product unavailable"}</div>
+                    <div className="text-[10px] text-muted-foreground">${unit.toFixed(2)} / {it.products?.unit ?? "ea"}</div>
+                  </div>
+                  <Input
+                    type="number" min={1}
+                    value={it.quantity}
+                    onChange={(e) => updateItemQty(it.id, Number(e.target.value || 1))}
+                    className="w-20"
+                  />
+                  <div className="w-24 text-right font-semibold">${line.toFixed(2)}</div>
+                  <Button size="icon" variant="ghost" onClick={() => removeItem(it.id)} aria-label="Remove item">
+                    <Trash2 className="h-4 w-4 text-destructive" />
+                  </Button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+
+        <div className="mt-4 ml-auto max-w-xs space-y-1 border-t border-border pt-3 text-sm">
+          <div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span>${quoteTotals.subtotal.toFixed(2)}</span></div>
+          <div className="flex justify-between"><span className="text-muted-foreground">VAT (10%)</span><span>${quoteTotals.vat.toFixed(2)}</span></div>
+          <div className="flex justify-between text-base font-bold text-primary"><span>Quote Total</span><span>${quoteTotals.total.toFixed(2)}</span></div>
+        </div>
+      </Card>
+
+
       {/* Notes */}
       <Card className="p-5">
         <Label className="text-xs">Project notes</Label>
