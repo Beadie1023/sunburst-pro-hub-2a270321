@@ -48,35 +48,91 @@ const unitPrice = (p: ProductLite | null, isContractor: boolean): number => {
 
 function ProjectDetail() {
   const { projectId } = useParams({ from: "/pro-hub/projects/$projectId" });
-  const { user } = useAuth();
+  const { user, role } = useAuth();
+  const isContractor = role === "contractor" || role === "admin";
   const [project, setProject] = useState<Project | null>(null);
   const [colors, setColors] = useState<ProjectColor[]>([]);
+  const [items, setItems] = useState<ProjectItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
+  // Product search state
+  const [search, setSearch] = useState("");
+  const [searchResults, setSearchResults] = useState<ProductLite[]>([]);
+  const [searching, setSearching] = useState(false);
+
   const load = async () => {
-    const [{ data: p }, { data: pc }] = await Promise.all([
+    const [{ data: p }, { data: pc }, { data: pi }] = await Promise.all([
       supabase.from("projects").select("*").eq("id", projectId).maybeSingle(),
       supabase.from("project_colors").select("*, paint_colors(code,name,hex,coverage_sqft)").eq("project_id", projectId),
+      supabase.from("project_items").select("*, products(id,sku,name,unit,price,retail_price,contractor_price)").eq("project_id", projectId),
     ]);
     setProject(p as Project | null);
     setColors((pc ?? []) as ProjectColor[]);
+    setItems((pi ?? []) as ProjectItem[]);
     setLoading(false);
   };
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [projectId]);
+
+  // Debounced product search
+  useEffect(() => {
+    const q = search.trim();
+    if (!q) { setSearchResults([]); return; }
+    setSearching(true);
+    const t = setTimeout(async () => {
+      const { data } = await supabase
+        .from("products")
+        .select("id,sku,name,unit,price,retail_price,contractor_price")
+        .or(`name.ilike.%${q}%,sku.ilike.%${q}%`)
+        .limit(8);
+      setSearchResults((data ?? []) as ProductLite[]);
+      setSearching(false);
+    }, 200);
+    return () => clearTimeout(t);
+  }, [search]);
 
   const wallArea = useMemo(() => {
     if (!project) return 0;
     return Number(project.wall_width ?? 0) * Number(project.wall_height ?? 0);
   }, [project]);
 
-  const totals = useMemo(() => {
+  // Paint calculator (indicative) — unchanged
+  const paintTotals = useMemo(() => {
     const totalGallons = colors.reduce((s, c) => s + Number(c.gallons ?? 0), 0);
     const subtotal = totalGallons * GALLON_PRICE;
     const vat = +(subtotal * VAT).toFixed(2);
     const total = +(subtotal + vat).toFixed(2);
     return { totalGallons, subtotal: +subtotal.toFixed(2), vat, total };
   }, [colors]);
+
+  // Quote totals (from product line items)
+  const quoteTotals = useMemo(() => {
+    const subtotal = items.reduce(
+      (s, it) => s + Number(it.quantity) * unitPrice(it.products, isContractor),
+      0,
+    );
+    const sub = +subtotal.toFixed(2);
+    const vat = +(sub * VAT).toFixed(2);
+    const total = +(sub + vat).toFixed(2);
+    return { subtotal: sub, vat, total };
+  }, [items, isContractor]);
+
+  // Persist quote totals when they change
+  useEffect(() => {
+    if (!project) return;
+    if (
+      Number(project.subtotal) === quoteTotals.subtotal &&
+      Number(project.vat_amount) === quoteTotals.vat &&
+      Number(project.total) === quoteTotals.total
+    ) return;
+    supabase
+      .from("projects")
+      .update({ subtotal: quoteTotals.subtotal, vat_rate: VAT, vat_amount: quoteTotals.vat, total: quoteTotals.total })
+      .eq("id", project.id)
+      .then(({ error }) => { if (error) toast.error(error.message); });
+    setProject({ ...project, subtotal: quoteTotals.subtotal, vat_amount: quoteTotals.vat, total: quoteTotals.total, vat_rate: VAT });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [quoteTotals.subtotal, quoteTotals.vat, quoteTotals.total]);
 
   // Auto-suggest gallons from wall area (round up)
   const suggestedGallons = (coverage: number) => wallArea > 0 ? Math.ceil(wallArea / Math.max(1, coverage)) : 1;
@@ -100,6 +156,37 @@ function ProjectDetail() {
     const { error } = await supabase.from("project_colors").delete().eq("id", id);
     if (error) return toast.error(error.message);
     setColors((cs) => cs.filter((c) => c.id !== id));
+  };
+
+  const addItem = async (product: ProductLite) => {
+    // If already present, bump quantity
+    const existing = items.find((i) => i.product_id === product.id);
+    if (existing) {
+      await updateItemQty(existing.id, existing.quantity + 1);
+      setSearch(""); setSearchResults([]);
+      return;
+    }
+    const { data, error } = await supabase
+      .from("project_items")
+      .insert({ project_id: projectId, product_id: product.id, quantity: 1 })
+      .select("*, products(id,sku,name,unit,price,retail_price,contractor_price)")
+      .single();
+    if (error) return toast.error(error.message);
+    setItems((xs) => [...xs, data as ProjectItem]);
+    setSearch(""); setSearchResults([]);
+  };
+
+  const updateItemQty = async (id: string, qty: number) => {
+    const q = Math.max(1, Math.floor(qty || 1));
+    setItems((xs) => xs.map((i) => (i.id === id ? { ...i, quantity: q } : i)));
+    const { error } = await supabase.from("project_items").update({ quantity: q }).eq("id", id);
+    if (error) toast.error(error.message);
+  };
+
+  const removeItem = async (id: string) => {
+    const { error } = await supabase.from("project_items").delete().eq("id", id);
+    if (error) return toast.error(error.message);
+    setItems((xs) => xs.filter((i) => i.id !== id));
   };
 
   if (loading) return <div className="flex justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-accent" /></div>;
