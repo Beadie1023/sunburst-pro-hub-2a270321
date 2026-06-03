@@ -250,12 +250,12 @@ function ProjectDetail() {
           </div>
           <div className="rounded-md bg-muted/40 p-3 text-sm">
             <div className="flex justify-between"><span className="text-muted-foreground">Wall area</span><span className="font-semibold">{wallArea.toLocaleString()} sq ft</span></div>
-            <div className="flex justify-between"><span className="text-muted-foreground">Selected gallons</span><span className="font-semibold">{totals.totalGallons}</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">Selected gallons</span><span className="font-semibold">{paintTotals.totalGallons}</span></div>
           </div>
           <div className="space-y-1 border-t border-border pt-3 text-sm">
-            <div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span>${totals.subtotal.toFixed(2)}</span></div>
-            <div className="flex justify-between"><span className="text-muted-foreground">VAT (10%)</span><span>${totals.vat.toFixed(2)}</span></div>
-            <div className="flex justify-between text-base font-bold text-primary"><span>Estimate</span><span>${totals.total.toFixed(2)}</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span>${paintTotals.subtotal.toFixed(2)}</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">VAT (10%)</span><span>${paintTotals.vat.toFixed(2)}</span></div>
+            <div className="flex justify-between text-base font-bold text-primary"><span>Estimate</span><span>${paintTotals.total.toFixed(2)}</span></div>
             <p className="text-[10px] text-muted-foreground">Estimate at indicative ${GALLON_PRICE}/gal. Final pricing applies your contractor tier at checkout.</p>
           </div>
           {saving && <div className="text-[10px] text-muted-foreground">Saving…</div>}
