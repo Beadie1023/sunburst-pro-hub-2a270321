@@ -16,6 +16,7 @@ export const Route = createFileRoute("/pro-hub/projects")({
 interface Project {
   id: string; name: string; client_name: string | null; location: string | null;
   status: string; updated_at: string;
+  subtotal: number; vat_amount: number; total: number;
 }
 
 const STATUS_STYLE: Record<string, string> = {
