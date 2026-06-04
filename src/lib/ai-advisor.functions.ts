@@ -62,7 +62,7 @@ export const recommendColors = createServerFn({ method: "POST" })
     try { parsed = JSON.parse(content); } catch { parsed = {}; }
     const recs = (parsed.recommendations ?? []).filter((r) => r && palette.some((p) => p.id === r.id));
 
-    // Hydrate with full color info
+       // Hydrate with full color info
     const enriched = recs.map((r) => {
       const c = palette.find((p) => p.id === r.id)!;
       return { ...r, color: c };
@@ -70,3 +70,4 @@ export const recommendColors = createServerFn({ method: "POST" })
 
     return { recommendations: enriched };
   });
+
