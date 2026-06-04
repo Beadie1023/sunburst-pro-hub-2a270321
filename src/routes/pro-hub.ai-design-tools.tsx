@@ -86,7 +86,7 @@ function UploadBox({ file, onFile, label = "Drop or click to upload an image", h
         const f = e.dataTransfer.files?.[0];
         if (f) onFile(f);
       }}
-      className={`${height} flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border bg-muted/30 p-4 text-center transition hover:border-accent`}
+      className={`${height} flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border bg-muted/30 p-4 text-center transition hover:border-accen[...]
     >
       <input
         ref={inputRef}
@@ -261,11 +261,13 @@ function AiDesignToolsPage() {
       const base64Data = await fileToBase64(matchFile);
 
       const response = await recommendColors({
-        imageBase64: base64Data,
-        mimeType: matchFile.type,
-        roomType: roomType,
-        style: stylePreference,
-        notes: contractorNotes,
+        data: {
+          imageBase64: base64Data,
+          mimeType: matchFile.type,
+          roomType: roomType,
+          style: stylePreference,
+          notes: contractorNotes,
+        },
       });
 
       if (response.success && response.recommendations) {
