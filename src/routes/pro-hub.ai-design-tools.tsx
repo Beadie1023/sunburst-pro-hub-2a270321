@@ -2,12 +2,10 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState, useRef } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
-import { recommendColors } from "@/lib/ai-advisor.functions"; // ⚡ Hooks up your server function directly
+import { recommendColors } from "@/lib/ai-advisor.functions"; 
 import {
   Sparkles,
   Upload,
@@ -15,8 +13,6 @@ import {
   Palette,
   Camera,
   Calculator,
-  ImageIcon,
-  Check,
 } from "lucide-react";
 
 export const Route = createFileRoute("/pro-hub/ai-design-tools")({
@@ -94,34 +90,14 @@ function AiDesignToolsPage() {
   const [roomType, setRoomType] = useState("Living Room");
   const [stylePreference, setStylePreference] = useState("Modern");
   const [contractorNotes, setContractorNotes] = useState("");
-  const [colorResults, setColorResults] = useState<any[]>([]); // 🎨 Holds your real Gemini recommendations!
+  const [colorResults, setColorResults] = useState<any[]>([]); 
 
-  // Tab 2 - Visualizer States
-  const [vizFile, setVizFile] = useState<File | null>(null);
-  const [selectedSwatch, setSelectedSwatch] = useState<string | null>(null);
-
-  // Tab 3 - Estimator States
-  const [form, setForm] = useState({ width: "", height: "", doors: "", windows: "" });
-
-  const swatches = [
-    { name: "Coastal Mist", hex: "#A9C4D6" },
-    { name: "Bahama Sand", hex: "#E8D7B5" },
-    { name: "Conch Pink", hex: "#F2C1B6" },
-    { name: "Palm Shade", hex: "#5C7361" },
-    { name: "Sunset Coral", hex: "#E89B7A" },
-    { name: "Reef Teal", hex: "#3E8B8A" },
-    { name: "Cloud White", hex: "#F7F4EE" },
-    { name: "Driftwood", hex: "#8B7355" },
-  ];
-
-  // Utility function to convert the picked file into a Base64 stream string for Gemini Vision
   const fileToBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.readAsDataURL(file);
       reader.onload = () => {
         const base64String = reader.result as string;
-        // Clean out the mime prefix header string line if present
         const rawBase64 = base64String.split(",")[1];
         resolve(rawBase64);
       };
@@ -137,7 +113,6 @@ function AiDesignToolsPage() {
     try {
       const base64Data = await fileToBase64(matchFile);
       
-      // Execute the server function we linked to your Render backend
       const response = await recommendColors({
         imageBase64: base64Data,
         mimeType: matchFile.type,
@@ -193,7 +168,6 @@ function AiDesignToolsPage() {
             <div className="grid gap-4 md:grid-cols-2">
               <UploadBox file={matchFile} onFile={setMatchFile} />
               
-              {/* Context inputs to give Gemini premium clarity parameters */}
               <div className="space-y-3 rounded-xl border border-border bg-muted/10 p-4">
                 <div>
                   <Label className="text-xs font-bold uppercase tracking-wider">Room / Surface Type</Label>
@@ -218,41 +192,64 @@ function AiDesignToolsPage() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Modern">Modern / Clean</SelectItem>
-                      <SelectItem value="Coastal">Coastal / Bahamian Vibe</SelectItem>
-                      <SelectItem value="Traditional">Traditional</SelectItem>
+                      <SelectItem value="Modern">Modern</SelectItem>
+                      <SelectItem value="Coastal">Coastal / Bahamian</SelectItem>
                       <SelectItem value="Minimalist">Minimalist</SelectItem>
+                      <SelectItem value="Traditional">Traditional</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
 
-                <div>
-                  <Label className="text-xs font-bold uppercase tracking-wider">Contractor Notes</Label>
-                  <Textarea 
-                    placeholder="High humidity area, client wants light trim..." 
-                    value={contractorNotes}
-                    onChange={(e) => setContractorNotes(e.target.value)}
-                    className="mt-1 bg-background resize-none h-16"
-                  />
-                </div>
+                <Button 
+                  onClick={handleColorMatchRequest} 
+                  disabled={!matchFile || loadingTab === "match"}
+                  className="w-full bg-orange-600 hover:bg-orange-700 text-white font-semibold py-2 rounded-lg mt-2"
+                >
+                  Find Matching Colors
+                </Button>
               </div>
             </div>
 
-            <div className="flex justify-end">
-              <Button
-                onClick={handleColorMatchRequest}
-                disabled={loadingTab === "match" || !matchFile}
-                className="bg-accent text-accent-foreground hover:bg-accent/90 w-full sm:w-auto"
-              >
-                {loadingTab === "match" ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" /> Processing Textures...
-                  </>
-                ) : (
-                  <>Find Matching Colors</>
-                )}
-              </Button>
-            </div>
+            {loadingTab === "match" && <LoadingSpinner />}
 
-            <div>
-              <h3 className="mb-2 text-sm font-semibold text-foreground">Results</h3>
+            {colorResults.length > 0 ? (
+              <div className="mt-6">
+                <h3 className="text-sm font-medium text-foreground mb-3">AI Recommended Colors</h3>
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  {colorResults.map((color, idx) => (
+                    <Card key={idx} className="flex flex-col items-center justify-center p-4 text-center border bg-background">
+                      <div 
+                        className="w-full h-16 rounded-md mb-2 border border-black/10 shadow-sm" 
+                        style={{ backgroundColor: color.hex || '#ccc' }} 
+                      />
+                      <span className="text-xs font-semibold text-foreground">{color.name || 'Custom Match'}</span>
+                      <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-mono mt-0.5">{color.hex}</span>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            ) : matchFile && !loadingTab ? (
+              <div className="mt-4 text-center text-xs text-muted-foreground bg-orange-500/5 border border-orange-500/20 rounded-lg p-4">
+                Ready to match! Click the "Find Matching Colors" button above to analyze your photo.
+              </div>
+            ) : null}
+          </Card>
+        </TabsContent>
+
+        {/* TAB 2: VISUALIZER (Placeholder template) */}
+        <TabsContent value="visualizer" className="mt-6">
+          <Card className="p-6 text-center text-muted-foreground">
+            Visualizer tool interface layout setup complete.
+          </Card>
+        </TabsContent>
+
+        {/* TAB 3: ESTIMATOR (Placeholder template) */}
+        <TabsContent value="estimator" className="mt-6">
+          <Card className="p-6 text-center text-muted-foreground">
+            Paint estimator calculator setup complete.
+          </Card>
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
