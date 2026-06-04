@@ -21,6 +21,7 @@ export const Route = createFileRoute("/pro-hub")({
 
 const NAV = [
   { to: "/pro-hub", label: "Global Catalog", icon: Palette, exact: true },
+  { to: "/pro-hub/ai-hub", label: "AI Hub", icon: Bot },
   { to: "/pro-hub/ai-advisor", label: "AI Color Advisor", icon: Sparkles },
   { to: "/pro-hub/projects", label: "My Projects", icon: FolderKanban },
   { to: "/pro-hub/saved", label: "Saved Colors", icon: Heart },
