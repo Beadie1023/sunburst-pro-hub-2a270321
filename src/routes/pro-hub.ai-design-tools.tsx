@@ -100,91 +100,6 @@ function UploadBox({ file, onFile, label = "Drop or click to upload an image", h
   );
 }
 
-interface VisualizerProps {
-  imageUrl: string;
-  selectedColor: { hex: string; name: string } | null;
-  onReset: () => void;
-}
-
-function RoomVisualizer({ imageUrl, selectedColor, onReset }: VisualizerProps) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [sliderPos, setSliderPos] = useState(50);
-
-  useEffect(() => {
-    if (!canvasRef.current || !imageUrl || !selectedColor) return;
-
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    img.onload = () => {
-      canvas.width = img.width;
-      canvas.height = img.height;
-
-      ctx.drawImage(img, 0, 0);
-
-      const overlayWidth = (img.width * sliderPos) / 100;
-      ctx.save();
-      ctx.fillStyle = selectedColor.hex;
-      ctx.globalAlpha = 0.4;
-      ctx.fillRect(overlayWidth, 0, img.width - overlayWidth, img.height);
-      ctx.restore();
-
-      ctx.strokeStyle = "#fff";
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.moveTo(overlayWidth, 0);
-      ctx.lineTo(overlayWidth, img.height);
-      ctx.stroke();
-    };
-    img.src = imageUrl;
-  }, [imageUrl, selectedColor, sliderPos]);
-
-  const handleDownload = () => {
-    if (!canvasRef.current) return;
-    const link = document.createElement("a");
-    link.href = canvasRef.current.toDataURL("image/png");
-    link.download = `color-preview-${Date.now()}.png`;
-    link.click();
-  };
-
-  if (!selectedColor) {
-    return (
-      <Card className="p-6 text-center text-muted-foreground">
-        Select a color from the results to see a preview
-      </Card>
-    );
-  }
-
-  return (
-    <div className="space-y-4">
-      <div className="relative rounded-lg overflow-hidden bg-muted">
-        <canvas ref={canvasRef} className="w-full h-auto max-h-96" />
-        <input
-          type="range"
-          min="0"
-          max="100"
-          value={sliderPos}
-          onChange={(e) => setSliderPos(parseInt(e.target.value))}
-          className="absolute bottom-4 left-4 right-4 w-auto max-w-xs"
-        />
-      </div>
-      <div className="flex gap-2">
-        <Button onClick={onReset} variant="outline" size="sm" className="gap-2">
-          <RotateCcw className="h-4 w-4" />
-          Reset
-        </Button>
-        <Button onClick={handleDownload} size="sm" className="gap-2">
-          <Download className="h-4 w-4" />
-          Download Preview
-        </Button>
-      </div>
-    </div>
-  );
-}
-
 function AiDesignToolsPage() {
   const [loadingTab, setLoadingTab] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -193,7 +108,7 @@ function AiDesignToolsPage() {
   const [roomType, setRoomType] = useState("Living Room");
   const [stylePreference, setStylePreference] = useState("Minimalist");
   const [contractorNotes, setContractorNotes] = useState("");
-  const [, setColorResults] = useState<any[]>([]);
+  const [colorResults, setColorResults] = useState<any[]>([]);
 
   const fileToBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -201,7 +116,8 @@ function AiDesignToolsPage() {
       reader.readAsDataURL(file);
       reader.onload = () => {
         const base64String = reader.result as string;
-        const rawBase64 = base64String.split(",")[1];
+        const parts = base64String.split(",");
+        const rawBase64 = parts.length > 1 ? parts[1] : parts[0];
         resolve(rawBase64);
       };
       reader.onerror = (error) => reject(error);
@@ -217,12 +133,12 @@ function AiDesignToolsPage() {
     try {
       const base64Data = await fileToBase64(matchFile);
 
-      // CRITICAL FIX: Ensure payload variables wrap inside a single structural object parameter
+      // Unified request payload argument
       const response = await recommendColors({
         image: base64Data,
-        roomType: roomType,
-        stylePreference: stylePreference,
-        contractorNotes: contractorNotes,
+        roomType,
+        stylePreference,
+        contractorNotes,
       });
 
       if (response && response.colors) {
@@ -255,11 +171,12 @@ function AiDesignToolsPage() {
             <select 
               value={roomType} 
               onChange={(e) => setRoomType(e.target.value)}
-              className="w-full p-2 border rounded-md bg-background"
+              className="w-full p-2 border rounded-md bg-background text-sm"
             >
               <option value="Living Room">Living Room</option>
               <option value="Bedroom">Bedroom</option>
               <option value="Kitchen">Kitchen</option>
+              <option value="Bathroom">Bathroom</option>
               <option value="Exterior">Exterior</option>
             </select>
           </div>
@@ -269,11 +186,12 @@ function AiDesignToolsPage() {
             <select 
               value={stylePreference} 
               onChange={(e) => setStylePreference(e.target.value)}
-              className="w-full p-2 border rounded-md bg-background"
+              className="w-full p-2 border rounded-md bg-background text-sm"
             >
               <option value="Minimalist">Minimalist</option>
               <option value="Modern">Modern</option>
               <option value="Traditional">Traditional</option>
+              <option value="Coastal">Coastal</option>
             </select>
           </div>
 
@@ -283,7 +201,7 @@ function AiDesignToolsPage() {
               value={contractorNotes}
               onChange={(e) => setContractorNotes(e.target.value)}
               placeholder="e.g., Low lighting, warm undertones..."
-              className="w-full p-2 border rounded-md bg-background h-20 resize-none"
+              className="w-full p-2 border rounded-md bg-background h-20 resize-none text-sm"
             />
           </div>
 
@@ -299,6 +217,26 @@ function AiDesignToolsPage() {
         <div className="space-y-4">
           {loadingTab === "match" && <LoadingSpinner />}
           {errorMsg && <ErrorCard message={errorMsg} />}
+          
+          {colorResults.length > 0 && (
+            <Card className="p-4 space-y-3">
+              <h3 className="font-semibold text-sm">Recommended Colors</h3>
+              <div className="grid grid-cols-2 gap-2">
+                {colorResults.map((color: any, i: number) => (
+                  <div key={i} className="flex items-center gap-2 p-2 border rounded-md">
+                    <div 
+                      className="w-6 h-6 rounded-full border" 
+                      style={{ backgroundColor: color.hex || '#ccc' }} 
+                    />
+                    <div className="text-xs">
+                      <p className="font-medium">{color.name || "Unnamed Color"}</p>
+                      <p className="text-muted-foreground uppercase">{color.hex || ""}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
         </div>
       </div>
     </div>
