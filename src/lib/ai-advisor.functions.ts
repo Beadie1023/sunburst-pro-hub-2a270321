@@ -34,6 +34,7 @@ function LoadingSpinner() {
   );
 }
 
+
 function ErrorCard({ message }: { message: string }) {
   return (
     <Card className="flex gap-3 border-red-200 bg-red-50 p-4 text-sm text-red-700">
