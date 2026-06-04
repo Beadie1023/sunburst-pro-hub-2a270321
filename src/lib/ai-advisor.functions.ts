@@ -57,12 +57,26 @@ export const recommendColors = createServerFn({ method: "POST" })
     }
 
     const aiJson = await aiRes.json();
-    const content = aiJson?.choices?.[0]?.message?.content ?? "{}";
+       const aiJson = await aiRes.json();
+    
+    // Safely extract content from either our custom Flask format or OpenAI format
+    let content = "{}";
+    if (aiJson?.choices?.[0]?.message?.content) {
+      content = aiJson.choices[0].message.content;
+    } else if (aiJson?.ai_response) {
+      content = aiJson.ai_response;
+    }
+
     let parsed: { recommendations?: Recommendation[] } = {};
-    try { parsed = JSON.parse(content); } catch { parsed = {}; }
+    try { 
+      parsed = typeof content === "string" ? JSON.parse(content) : content; 
+    } catch { 
+      parsed = {}; 
+    }
+    
     const recs = (parsed.recommendations ?? []).filter((r) => r && palette.some((p) => p.id === r.id));
 
-       // Hydrate with full color info
+    // Hydrate with full color info
     const enriched = recs.map((r) => {
       const c = palette.find((p) => p.id === r.id)!;
       return { ...r, color: c };
@@ -70,4 +84,3 @@ export const recommendColors = createServerFn({ method: "POST" })
 
     return { recommendations: enriched };
   });
-
