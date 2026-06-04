@@ -1,22 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { recommendColors } from "@/lib/ai-advisor.functions";
 import {
-  Sparkles,
   Upload,
   Loader2,
-  Palette,
-  Camera,
-  Calculator,
-  Check,
   AlertCircle,
-  Copy,
   Download,
   RotateCcw,
 } from "lucide-react";
@@ -86,7 +76,7 @@ function UploadBox({ file, onFile, label = "Drop or click to upload an image", h
         const f = e.dataTransfer.files?.[0];
         if (f) onFile(f);
       }}
-      className={`${height} flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border bg-muted/30 p-4 text-center transition hover:border-accen[...]
+      className={`${height} flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border bg-muted/30 p-4 text-center transition hover:border-accent`}
     >
       <input
         ref={inputRef}
@@ -133,10 +123,8 @@ function RoomVisualizer({ imageUrl, selectedColor, onReset }: VisualizerProps) {
       canvas.width = img.width;
       canvas.height = img.height;
 
-      // Draw original image
       ctx.drawImage(img, 0, 0);
 
-      // Draw overlay on right side based on slider
       const overlayWidth = (img.width * sliderPos) / 100;
       ctx.save();
       ctx.fillStyle = selectedColor.hex;
@@ -144,7 +132,6 @@ function RoomVisualizer({ imageUrl, selectedColor, onReset }: VisualizerProps) {
       ctx.fillRect(overlayWidth, 0, img.width - overlayWidth, img.height);
       ctx.restore();
 
-      // Draw slider line
       ctx.strokeStyle = "#fff";
       ctx.lineWidth = 3;
       ctx.beginPath();
@@ -194,9 +181,6 @@ function RoomVisualizer({ imageUrl, selectedColor, onReset }: VisualizerProps) {
           Download Preview
         </Button>
       </div>
-      <div className="text-xs text-muted-foreground">
-        Drag the slider to preview the color overlay
-      </div>
     </div>
   );
 }
@@ -205,38 +189,11 @@ function AiDesignToolsPage() {
   const [loadingTab, setLoadingTab] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // Tab 1 - Color Match States
   const [matchFile, setMatchFile] = useState<File | null>(null);
   const [roomType, setRoomType] = useState("Living Room");
-  const [stylePreference, setStylePreference] = useState("Modern");
+  const [stylePreference, setStylePreference] = useState("Minimalist");
   const [contractorNotes, setContractorNotes] = useState("");
-  const [colorResults, setColorResults] = useState<any[]>([]);
-
-  // Tab 2 - Visualizer States
-  const [vizFile, setVizFile] = useState<File | null>(null);
-  const [vizPreviewUrl, setVizPreviewUrl] = useState<string | null>(null);
-  const [selectedSwatch, setSelectedSwatch] = useState<{ hex: string; name: string } | null>(null);
-
-  // Tab 3 - Estimator States
-  const [width, setWidth] = useState("");
-  const [height, setHeight] = useState("");
-  const [doors, setDoors] = useState("0");
-  const [windows, setWindows] = useState("0");
-  const [estimationResult, setEstimationResult] = useState<{
-    area: number;
-    gallons: number;
-    coats: number;
-  } | null>(null);
-
-  // Update visualizer preview
-  useEffect(() => {
-    if (vizFile) {
-      const url = URL.createObjectURL(vizFile);
-      setVizPreviewUrl(url);
-      return () => URL.revokeObjectURL(url);
-    }
-    setVizPreviewUrl(null);
-  }, [vizFile]);
+  const [, setColorResults] = useState<any[]>([]);
 
   const fileToBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -260,413 +217,90 @@ function AiDesignToolsPage() {
     try {
       const base64Data = await fileToBase64(matchFile);
 
+      // CRITICAL FIX: Ensure payload variables wrap inside a single structural object parameter
       const response = await recommendColors({
-        data: {
-          imageBase64: base64Data,
-          mimeType: matchFile.type,
-          roomType: roomType,
-          style: stylePreference,
-          notes: contractorNotes,
-        },
+        image: base64Data,
+        roomType: roomType,
+        stylePreference: stylePreference,
+        contractorNotes: contractorNotes,
       });
 
-      if (response.success && response.recommendations) {
-        setColorResults(response.recommendations);
-      } else {
-        setErrorMsg(response.error || "Failed to match colors");
+      if (response && response.colors) {
+        setColorResults(response.colors);
+      } else if (Array.isArray(response)) {
+        setColorResults(response);
       }
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error);
-      setErrorMsg(msg);
-      console.error("Color match error:", msg);
+    } catch (error: any) {
+      console.error(error);
+      setErrorMsg(error?.message || JSON.stringify(error) || "An unexpected configuration error occurred.");
     } finally {
       setLoadingTab(null);
     }
   };
 
-  const calculatePaintNeeded = (e: React.FormEvent) => {
-    e.preventDefault();
-    const w = parseFloat(width) || 0;
-    const h = parseFloat(height) || 0;
-    const d = parseInt(doors) || 0;
-    const wnd = parseInt(windows) || 0;
-
-    if (w <= 0 || h <= 0) {
-      setEstimationResult(null);
-      return;
-    }
-
-    const totalArea = w * h - d * 20 - wnd * 15;
-    const gallonsNeeded = Math.max(0.5, Math.ceil((totalArea / 350) * 10) / 10);
-    const coats = Math.ceil(totalArea / 350 / 3.5); // 2-3 coats typical
-
-    setEstimationResult({
-      area: Math.max(0, totalArea),
-      gallons: gallonsNeeded,
-      coats: Math.max(1, coats),
-    });
-  };
-
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-  };
-
   return (
-    <div className="space-y-6">
+    <div className="p-6 space-y-6 max-w-4xl mx-auto">
       <div>
-        <h1 className="flex items-center gap-2 text-3xl font-bold text-primary">
-          <Sparkles className="h-7 w-7 text-accent" /> AI Design Tools
-        </h1>
-        <p className="text-muted-foreground">
-          Color match, room visualization, and paint estimation — all in one place.
-        </p>
+        <h1 className="text-3xl font-bold tracking-tight">AI Design Tools</h1>
+        <p className="text-muted-foreground">Color match, room visualization, and paint estimation.</p>
       </div>
 
-      <Tabs defaultValue="match" className="w-full">
-        <TabsList className="grid w-full grid-cols-3 md:w-auto md:inline-grid">
-          <TabsTrigger value="match" className="gap-1.5">
-            <Palette className="h-4 w-4" /> Color Match
-          </TabsTrigger>
-          <TabsTrigger value="visualizer" className="gap-1.5">
-            <Camera className="h-4 w-4" /> Visualizer
-          </TabsTrigger>
-          <TabsTrigger value="estimator" className="gap-1.5">
-            <Calculator className="h-4 w-4" /> Paint Estimator
-          </TabsTrigger>
-        </TabsList>
+      <div className="grid md:grid-cols-2 gap-6">
+        <Card className="p-4 space-y-4">
+          <h2 className="text-lg font-semibold">Upload a photo</h2>
+          <UploadBox file={matchFile} onFile={setMatchFile} />
+          
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Room / Surface Type</label>
+            <select 
+              value={roomType} 
+              onChange={(e) => setRoomType(e.target.value)}
+              className="w-full p-2 border rounded-md bg-background"
+            >
+              <option value="Living Room">Living Room</option>
+              <option value="Bedroom">Bedroom</option>
+              <option value="Kitchen">Kitchen</option>
+              <option value="Exterior">Exterior</option>
+            </select>
+          </div>
 
-        {/* TAB 1: COLOR MATCH */}
-        <TabsContent value="match" className="mt-6">
-          <Card className="space-y-5 p-6 shadow-sm">
-            <div>
-              <h2 className="text-lg font-semibold text-foreground">Upload a photo</h2>
-              <p className="text-sm text-muted-foreground">
-                We'll find the closest Sunburst colors in our 1,200+ catalog.
-              </p>
-            </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Style Preference</label>
+            <select 
+              value={stylePreference} 
+              onChange={(e) => setStylePreference(e.target.value)}
+              className="w-full p-2 border rounded-md bg-background"
+            >
+              <option value="Minimalist">Minimalist</option>
+              <option value="Modern">Modern</option>
+              <option value="Traditional">Traditional</option>
+            </select>
+          </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
-              <UploadBox file={matchFile} onFile={setMatchFile} />
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Contractor Notes (Optional)</label>
+            <textarea
+              value={contractorNotes}
+              onChange={(e) => setContractorNotes(e.target.value)}
+              placeholder="e.g., Low lighting, warm undertones..."
+              className="w-full p-2 border rounded-md bg-background h-20 resize-none"
+            />
+          </div>
 
-              <div className="space-y-3 rounded-xl border border-border bg-muted/10 p-4">
-                <div>
-                  <Label className="text-xs font-bold uppercase tracking-wider">
-                    Room / Surface Type
-                  </Label>
-                  <Select value={roomType} onValueChange={setRoomType}>
-                    <SelectTrigger className="mt-1 bg-background">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Living Room">Living Room</SelectItem>
-                      <SelectItem value="Exterior Siding">Exterior Siding</SelectItem>
-                      <SelectItem value="Kitchen">Kitchen</SelectItem>
-                      <SelectItem value="Bedroom">Bedroom</SelectItem>
-                      <SelectItem value="Commercial Space">Commercial Space</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+          <Button 
+            onClick={handleColorMatchRequest} 
+            className="w-full bg-[#f24e1e] hover:bg-[#d63f13] text-white"
+            disabled={loadingTab === "match" || !matchFile}
+          >
+            {loadingTab === "match" ? "Processing..." : "Find Matching Colors"}
+          </Button>
+        </Card>
 
-                <div>
-                  <Label className="text-xs font-bold uppercase tracking-wider">
-                    Style Preference
-                  </Label>
-                  <Select value={stylePreference} onValueChange={setStylePreference}>
-                    <SelectTrigger className="mt-1 bg-background">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Modern">Modern</SelectItem>
-                      <SelectItem value="Coastal">Coastal / Bahamian</SelectItem>
-                      <SelectItem value="Minimalist">Minimalist</SelectItem>
-                      <SelectItem value="Traditional">Traditional</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div>
-                  <Label className="text-xs font-bold uppercase tracking-wider">
-                    Contractor Notes (Optional)
-                  </Label>
-                  <Input
-                    placeholder="e.g., Low lighting, warm undertones..."
-                    value={contractorNotes}
-                    onChange={(e) => setContractorNotes(e.target.value)}
-                    className="mt-1"
-                  />
-                </div>
-
-                <Button
-                  onClick={handleColorMatchRequest}
-                  disabled={!matchFile || loadingTab === "match"}
-                  className="w-full bg-orange-600 hover:bg-orange-700 text-white font-semibold py-2 rounded-lg mt-2"
-                >
-                  {loadingTab === "match" ? "Analyzing..." : "Find Matching Colors"}
-                </Button>
-              </div>
-            </div>
-
-            {loadingTab === "match" && <LoadingSpinner />}
-            {errorMsg && <ErrorCard message={errorMsg} />}
-
-            {colorResults.length > 0 ? (
-              <div className="mt-6 space-y-4">
-                <h3 className="text-sm font-medium text-foreground">
-                  AI Recommended Colors ({colorResults.length} found)
-                </h3>
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                  {colorResults.map((color, idx) => (
-                    <Card
-                      key={idx}
-                      className="flex flex-col overflow-hidden border bg-background hover:shadow-md transition"
-                    >
-                      <div
-                        className="h-24 w-full"
-                        style={{ backgroundColor: color.hex }}
-                      />
-                      <div className="flex-1 space-y-2 p-3">
-                        <div>
-                          <p className="font-medium text-sm text-foreground">{color.name}</p>
-                          <p className="text-xs text-muted-foreground">{color.collection}</p>
-                        </div>
-                        <div className="space-y-1 text-xs">
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">Code:</span>
-                            <span className="font-mono font-medium">{color.code}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">Hex:</span>
-                            <span className="font-mono font-medium">{color.hex}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">Match:</span>
-                            <span className="font-medium text-accent">
-                              {Math.round(100 - (color.colorDifference / 255) * 100)}%
-                            </span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">Role:</span>
-                            <span className="font-medium capitalize">{color.role}</span>
-                          </div>
-                        </div>
-                        <p className="text-xs text-muted-foreground italic mt-2">
-                          "{color.reason}"
-                        </p>
-                      </div>
-                      <Button
-                        onClick={() => copyToClipboard(color.hex)}
-                        variant="ghost"
-                        size="sm"
-                        className="w-full gap-2 rounded-none border-t"
-                      >
-                        <Copy className="h-3 w-3" />
-                        Copy Hex
-                      </Button>
-                    </Card>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-          </Card>
-        </TabsContent>
-
-        {/* TAB 2: VISUALIZER */}
-        <TabsContent value="visualizer" className="mt-6">
-          <Card className="space-y-5 p-6 shadow-sm">
-            <div>
-              <h2 className="text-lg font-semibold text-foreground">Room Visualizer</h2>
-              <p className="text-sm text-muted-foreground">
-                Upload a room photo and preview colors before purchasing.
-              </p>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2">
-              <UploadBox
-                file={vizFile}
-                onFile={setVizFile}
-                label="Upload room photo"
-                height="h-64"
-              />
-
-              {vizPreviewUrl && (
-                <div className="space-y-3">
-                  <div>
-                    <Label className="text-xs font-bold uppercase tracking-wider">
-                      Select Color to Preview
-                    </Label>
-                  </div>
-                  <div className="space-y-2 max-h-64 overflow-y-auto">
-                    {colorResults.length > 0 ? (
-                      <div className="grid grid-cols-2 gap-2">
-                        {colorResults.slice(0, 8).map((color) => (
-                          <button
-                            key={color.id}
-                            onClick={() =>
-                              setSelectedSwatch({ hex: color.hex, name: color.name })
-                            }
-                            className={`flex flex-col items-center gap-1 p-2 rounded-lg border-2 transition ${
-                              selectedSwatch?.hex === color.hex
-                                ? "border-accent bg-accent/5"
-                                : "border-border hover:border-accent/50"
-                            }`}
-                          >
-                            <div
-                              className="h-12 w-12 rounded"
-                              style={{ backgroundColor: color.hex }}
-                            />
-                            <span className="text-xs font-medium text-center truncate">
-                              {color.name}
-                            </span>
-                          </button>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-sm text-muted-foreground">
-                        Run color match first to see available colors
-                      </p>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {vizPreviewUrl && (
-              <RoomVisualizer
-                imageUrl={vizPreviewUrl}
-                selectedColor={selectedSwatch}
-                onReset={() => setSelectedSwatch(null)}
-              />
-            )}
-          </Card>
-        </TabsContent>
-
-        {/* TAB 3: PAINT ESTIMATOR */}
-        <TabsContent value="estimator" className="mt-6">
-          <Card className="space-y-5 p-6 shadow-sm">
-            <div>
-              <h2 className="text-lg font-semibold text-foreground">Paint Estimator</h2>
-              <p className="text-sm text-muted-foreground">
-                Calculate how much paint you'll need for your project.
-              </p>
-            </div>
-
-            <form onSubmit={calculatePaintNeeded} className="grid gap-4 md:grid-cols-2">
-              <div>
-                <Label htmlFor="width" className="text-xs font-bold uppercase tracking-wider">
-                  Wall Width (ft)
-                </Label>
-                <Input
-                  id="width"
-                  type="number"
-                  step="0.1"
-                  value={width}
-                  onChange={(e) => setWidth(e.target.value)}
-                  placeholder="e.g., 12"
-                  className="mt-1"
-                />
-              </div>
-              <div>
-                <Label htmlFor="height" className="text-xs font-bold uppercase tracking-wider">
-                  Wall Height (ft)
-                </Label>
-                <Input
-                  id="height"
-                  type="number"
-                  step="0.1"
-                  value={height}
-                  onChange={(e) => setHeight(e.target.value)}
-                  placeholder="e.g., 8"
-                  className="mt-1"
-                />
-              </div>
-              <div>
-                <Label htmlFor="doors" className="text-xs font-bold uppercase tracking-wider">
-                  Number of Doors
-                </Label>
-                <Input
-                  id="doors"
-                  type="number"
-                  min="0"
-                  value={doors}
-                  onChange={(e) => setDoors(e.target.value)}
-                  placeholder="0"
-                  className="mt-1"
-                />
-              </div>
-              <div>
-                <Label htmlFor="windows" className="text-xs font-bold uppercase tracking-wider">
-                  Number of Windows
-                </Label>
-                <Input
-                  id="windows"
-                  type="number"
-                  min="0"
-                  value={windows}
-                  onChange={(e) => setWindows(e.target.value)}
-                  placeholder="0"
-                  className="mt-1"
-                />
-              </div>
-
-              <Button
-                type="submit"
-                className="col-span-full md:col-span-2 bg-orange-600 hover:bg-orange-700 text-white font-semibold py-2 rounded-lg"
-              >
-                Calculate Paint Needed
-              </Button>
-            </form>
-
-            {estimationResult && (
-              <div className="grid gap-4 md:grid-cols-4 border-t pt-6">
-                <div className="rounded-lg bg-muted/50 p-4 text-center">
-                  <p className="text-xs text-muted-foreground uppercase font-medium">
-                    Paintable Area
-                  </p>
-                  <p className="text-2xl font-bold text-foreground mt-1">
-                    {estimationResult.area.toFixed(0)} sq ft
-                  </p>
-                </div>
-                <div className="rounded-lg bg-muted/50 p-4 text-center">
-                  <p className="text-xs text-muted-foreground uppercase font-medium">
-                    Gallons Needed
-                  </p>
-                  <p className="text-2xl font-bold text-accent mt-1">
-                    {estimationResult.gallons} gal
-                  </p>
-                </div>
-                <div className="rounded-lg bg-muted/50 p-4 text-center">
-                  <p className="text-xs text-muted-foreground uppercase font-medium">
-                    Recommended Coats
-                  </p>
-                  <p className="text-2xl font-bold text-foreground mt-1">
-                    {estimationResult.coats} coat{estimationResult.coats !== 1 ? "s" : ""}
-                  </p>
-                </div>
-                <div className="rounded-lg bg-accent/10 p-4 text-center">
-                  <p className="text-xs text-muted-foreground uppercase font-medium">
-                    Total Volume
-                  </p>
-                  <p className="text-2xl font-bold text-accent mt-1">
-                    {(estimationResult.gallons * estimationResult.coats).toFixed(1)} gal
-                  </p>
-                </div>
-              </div>
-            )}
-
-            <div className="text-xs text-muted-foreground space-y-1 border-t pt-4">
-              <p>
-                <strong>Coverage:</strong> 350 sq ft per gallon (2 coats typical)
-              </p>
-              <p>
-                <strong>Deductions:</strong> 20 sq ft per door, 15 sq ft per window
-              </p>
-              <p>
-                <strong>Note:</strong> Add 10-15% extra for waste and touch-ups.
-              </p>
-            </div>
-          </Card>
-        </TabsContent>
-      </Tabs>
+        <div className="space-y-4">
+          {loadingTab === "match" && <LoadingSpinner />}
+          {errorMsg && <ErrorCard message={errorMsg} />}
+        </div>
+      </div>
     </div>
   );
 }
