@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { recommendColors } from "@/lib/ai-advisor.functions"; 
 import {
   Sparkles,
@@ -14,7 +15,7 @@ import {
   Palette,
   Camera,
   Calculator,
-  Check,
+  PaintBucket,
 } from "lucide-react";
 
 export const Route = createFileRoute("/pro-hub/ai-design-tools")({
@@ -35,7 +36,7 @@ function LoadingSpinner() {
   return (
     <div className="flex flex-col items-center justify-center gap-2 p-6 text-sm text-muted-foreground">
       <Loader2 className="h-6 w-6 animate-spin text-accent" />
-      <span>Waking up AI engine... analyzing lighting & textures...</span>
+      <span>Waking up AI engine... analyzing spaces & calculations...</span>
     </div>
   );
 }
@@ -91,6 +92,7 @@ function AiDesignToolsPage() {
   const [matchFile, setMatchFile] = useState<File | null>(null);
   const [roomType, setRoomType] = useState("Living Room");
   const [stylePreference, setStylePreference] = useState("Modern");
+  const [contractorNotes, setContractorNotes] = useState("");
   const [colorResults, setColorResults] = useState<any[]>([]); 
 
   // Tab 2 - Visualizer States
@@ -98,8 +100,11 @@ function AiDesignToolsPage() {
   const [selectedSwatch, setSelectedSwatch] = useState<string | null>(null);
 
   // Tab 3 - Estimator States
-  const [form, setForm] = useState({ width: "", height: "", doors: "1", windows: "1" });
-  const [estimationResult, setEstimationResult] = useState<{ gallons: number; coats: number } | null>(null);
+  const [width, setWidth] = useState("");
+  const [height, setHeight] = useState("");
+  const [doors, setDoors] = useState("0");
+  const [windows, setWindows] = useState("0");
+  const [calculatedGallons, setCalculatedGallons] = useState<number | null>(null);
 
   const swatches = [
     { name: "Coastal Mist", hex: "#A9C4D6" },
@@ -137,7 +142,7 @@ function AiDesignToolsPage() {
         mimeType: matchFile.type,
         roomType: roomType,
         style: stylePreference,
-        notes: "",
+        notes: contractorNotes,
       });
 
       if (response && response.recommendations) {
@@ -150,22 +155,22 @@ function AiDesignToolsPage() {
     }
   };
 
-  const calculatePaintNeeded = (e: React.FormEvent) => {
-    e.preventDefault();
-    const w = parseFloat(form.width) || 0;
-    const h = parseFloat(form.height) || 0;
-    const d = parseFloat(form.doors) || 0;
-    const win = parseFloat(form.windows) || 0;
+  const calculatePaint = () => {
+    const w = parseFloat(width) || 0;
+    const h = parseFloat(height) || 0;
+    const d = parseInt(doors) || 0;
+    const win = parseInt(windows) || 0;
 
-    // Total wall area minus deductions for openings (approx 20 sq ft per door/window)
-    const totalArea = (w * h) - (d * 20) - (win * 15);
-    // Standard rule: 1 gallon covers roughly 350-400 square feet per coat
-    const gallonsPerCoat = Math.max(0.5, Math.ceil((totalArea / 350) * 10) / 10);
+    if (w <= 0 || h <= 0) return;
 
-    setEstimationResult({
-      gallons: gallonsPerCoat * 2, // Standard 2 coats recommended
-      coats: 2
-    });
+    // Standard paint estimation arithmetic logic
+    const totalWallArea = w * h;
+    const deductions = (d * 21) + (win * 15); 
+    const paintableArea = Math.max(0, totalWallArea - deductions);
+    
+    // 1 Gallon roughly covers 350 sq ft with 2 coats
+    const gallonsNeeded = Math.ceil((paintableArea / 350) * 2);
+    setCalculatedGallons(gallonsNeeded);
   };
 
   return (
@@ -237,6 +242,16 @@ function AiDesignToolsPage() {
                   </Select>
                 </div>
 
+                <div>
+                  <Label className="text-xs font-bold uppercase tracking-wider">Project Notes (Optional)</Label>
+                  <Textarea 
+                    value={contractorNotes} 
+                    onChange={(e) => setContractorNotes(e.target.value)} 
+                    placeholder="E.g., High humidity area, lots of direct sunlight..." 
+                    className="mt-1 bg-background resize-none h-16"
+                  />
+                </div>
+
                 <Button 
                   onClick={handleColorMatchRequest} 
                   disabled={!matchFile || loadingTab === "match"}
@@ -246,13 +261,3 @@ function AiDesignToolsPage() {
                 </Button>
               </div>
             </div>
-
-            {loadingTab === "match" && <LoadingSpinner />}
-
-            {colorResults.length > 0 ? (
-              <div className="mt-6">
-                <h3 className="text-sm font-medium text-foreground mb-3">AI Recommended Colors</h3>
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                  {colorResults.map((color, idx) => (
-                    <Card key={idx} className="flex flex-col items-center justify-center p-4 text-center border bg-background">
-                      <div 
