@@ -47,13 +47,14 @@ interface ToolCard {
   badge?: string;
 }
 
+// 🛠️ FIXING ROUTING PARAMS TO POINT TO YOUR CONSOLIDATED TAB PAGE
 const TOOLS: ToolCard[] = [
   {
     title: "AI Color Match",
     description:
       "Upload a photo of any surface and instantly find the closest Sunburst paint color from our 1,200+ catalog.",
     icon: Palette,
-    href: "/pro-hub/ai-advisor",
+    href: "/pro-hub/ai-design-tools", // Points cleanly to your tabbed view setup
     gradient: "from-teal to-teal-foreground/20",
     badge: "Live",
   },
@@ -62,7 +63,7 @@ const TOOLS: ToolCard[] = [
     description:
       "See any Sunburst color on your client's walls before opening a single can. Upload a room photo and preview instantly.",
     icon: Camera,
-    href: "#",
+    href: "/pro-hub/ai-design-tools", // Fixed from "#" to point directly to your master layout
     gradient: "from-accent to-accent-glow",
     badge: "Beta",
   },
@@ -71,7 +72,7 @@ const TOOLS: ToolCard[] = [
     description:
       "Calculate exact gallons needed by room dimensions, surface type, and coats. Eliminate over-ordering waste.",
     icon: Calculator,
-    href: "#",
+    href: "/pro-hub/ai-design-tools", // Fixed from "#" to link up your estimator form tab field
     gradient: "from-primary to-primary-glow",
     badge: "New",
   },
@@ -232,153 +233,6 @@ function AiHubPage() {
           </p>
         </div>
       </Card>
-
-      {/* Floating AI Concierge Button */}
-      {!chatOpen && (
-        <button
-          onClick={() => {
-            setChatOpen(true);
-            setChatMinimized(false);
-          }}
-          className="fixed bottom-6 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-pro transition hover:scale-105 hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-ring"
-          aria-label="Open AI Concierge"
-        >
-          <Bot className="h-6 w-6" />
-        </button>
-      )}
-
-      {/* AI Concierge Chat Drawer */}
-      {chatOpen && (
-        <div
-          className={`fixed bottom-6 right-6 z-50 flex flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-pro transition-all duration-300 ${
-            chatMinimized
-              ? "h-14 w-72"
-              : "h-[520px] w-[380px] max-w-[calc(100vw-2rem)]"
-          }`}
-        >
-          {/* Chat Header */}
-          <div className="flex shrink-0 items-center gap-3 border-b border-border bg-primary px-4 py-2.5 text-primary-foreground">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white/15">
-              <Bot className="h-4 w-4" />
-            </div>
-            <div className="flex-1">
-              <div className="text-sm font-semibold">AI Concierge</div>
-              <div className="text-[10px] opacity-80">Sunburst Paint Expert</div>
-            </div>
-            <button
-              onClick={() => setChatMinimized((v) => !v)}
-              className="rounded p-1 hover:bg-white/10"
-              aria-label={chatMinimized ? "Expand" : "Minimize"}
-            >
-              {chatMinimized ? (
-                <Maximize2 className="h-4 w-4" />
-              ) : (
-                <Maximize2 className="h-4 w-4 rotate-180" />
-              )}
-            </button>
-            <button
-              onClick={() => setChatOpen(false)}
-              className="rounded p-1 hover:bg-white/10"
-              aria-label="Close"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-
-          {/* Chat Body */}
-          {!chatMinimized && (
-            <>
-              <div
-                ref={scrollRef}
-                className="flex-1 space-y-3 overflow-y-auto p-4"
-              >
-                {messages.map((msg) => (
-                  <div
-                    key={msg.id}
-                    className={`flex gap-2.5 ${
-                      msg.role === "user" ? "flex-row-reverse" : "flex-row"
-                    }`}
-                  >
-                    <div
-                      className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${
-                        msg.role === "user"
-                          ? "bg-accent/15 text-accent"
-                          : "bg-primary/10 text-primary"
-                      }`}
-                    >
-                      {msg.role === "user" ? (
-                        <User className="h-3.5 w-3.5" />
-                      ) : (
-                        <Bot className="h-3.5 w-3.5" />
-                      )}
-                    </div>
-                    <div
-                      className={`max-w-[80%] rounded-xl px-3 py-2 text-sm leading-relaxed ${
-                        msg.role === "user"
-                          ? "bg-accent text-accent-foreground"
-                          : "bg-muted text-foreground"
-                      }`}
-                    >
-                      {msg.content}
-                    </div>
-                  </div>
-                ))}
-                {loading && (
-                  <div className="flex gap-2.5">
-                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-                      <Bot className="h-3.5 w-3.5" />
-                    </div>
-                    <div className="flex items-center gap-1 rounded-xl bg-muted px-3 py-2 text-sm text-muted-foreground">
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      Thinking…
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Quick Replies */}
-              {messages.length <= 2 && !loading && (
-                <div className="shrink-0 px-4 pb-2">
-                  <div className="flex flex-wrap gap-1.5">
-                    {quickReplies.map((qr) => (
-                      <button
-                        key={qr}
-                        onClick={() => {
-                          setInput(qr);
-                        }}
-                        className="rounded-full border border-border bg-muted/60 px-2.5 py-1 text-[11px] text-muted-foreground transition hover:border-accent hover:text-accent"
-                      >
-                        {qr}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Input */}
-              <div className="shrink-0 border-t border-border p-3">
-                <div className="flex gap-2">
-                  <Input
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    onKeyDown={handleKeyDown}
-                    placeholder="Ask about colors, coverage, finishes…"
-                    className="h-9 flex-1 text-sm"
-                  />
-                  <Button
-                    size="icon"
-                    onClick={handleSend}
-                    disabled={!input.trim() || loading}
-                    className="h-9 w-9 shrink-0 bg-accent text-accent-foreground hover:bg-accent/90 disabled:opacity-40"
-                  >
-                    <Send className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            </>
-          )}
-        </div>
-      )}
     </div>
   );
 }
