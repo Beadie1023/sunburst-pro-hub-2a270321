@@ -1,7 +1,7 @@
 import { createFileRoute, Link, Outlet, useRouterState, redirect } from "@tanstack/react-router";
 import { useState } from "react";
 import { Header } from "@/components/Header";
-import { Palette, FolderKanban, Heart, RotateCcw, Wallet, Search, Wifi, Menu, X, Sparkles } from "lucide-react";
+import { Palette, FolderKanban, Heart, RotateCcw, Wallet, Search, Wifi, Menu, X, Sparkles, Bot } from "lucide-react";
 import { Input } from "@/components/ui/input";
 
 export const Route = createFileRoute("/pro-hub")({
