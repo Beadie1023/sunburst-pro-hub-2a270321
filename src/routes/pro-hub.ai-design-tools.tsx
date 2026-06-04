@@ -5,6 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { recommendColors } from "@/lib/ai-advisor.functions"; // ⚡ Hooks up your server function directly
 import {
   Sparkles,
   Upload,
@@ -13,6 +16,7 @@ import {
   Camera,
   Calculator,
   ImageIcon,
+  Check,
 } from "lucide-react";
 
 export const Route = createFileRoute("/pro-hub/ai-design-tools")({
@@ -29,13 +33,11 @@ export const Route = createFileRoute("/pro-hub/ai-design-tools")({
   }),
 });
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL as string | undefined;
-
 function LoadingSpinner() {
   return (
-    <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
-      <Loader2 className="h-4 w-4 animate-spin text-accent" />
-      Waking up AI engine...
+    <div className="flex flex-col items-center justify-center gap-2 p-6 text-sm text-muted-foreground">
+      <Loader2 className="h-6 w-6 animate-spin text-accent" />
+      <span>Waking up AI engine... analyzing lighting & textures...</span>
     </div>
   );
 }
@@ -85,17 +87,20 @@ function UploadBox({ file, onFile, label = "Drop or click to upload an image", h
 }
 
 function AiDesignToolsPage() {
-  // shared loading state per tab
   const [loadingTab, setLoadingTab] = useState<string | null>(null);
 
-  // Tab 1 - Color Match
+  // Tab 1 - Color Match States
   const [matchFile, setMatchFile] = useState<File | null>(null);
+  const [roomType, setRoomType] = useState("Living Room");
+  const [stylePreference, setStylePreference] = useState("Modern");
+  const [contractorNotes, setContractorNotes] = useState("");
+  const [colorResults, setColorResults] = useState<any[]>([]); // 🎨 Holds your real Gemini recommendations!
 
-  // Tab 2 - Visualizer
+  // Tab 2 - Visualizer States
   const [vizFile, setVizFile] = useState<File | null>(null);
   const [selectedSwatch, setSelectedSwatch] = useState<string | null>(null);
 
-  // Tab 3 - Estimator
+  // Tab 3 - Estimator States
   const [form, setForm] = useState({ width: "", height: "", doors: "", windows: "" });
 
   const swatches = [
@@ -109,26 +114,47 @@ function AiDesignToolsPage() {
     { name: "Driftwood", hex: "#8B7355" },
   ];
 
-  async function submit(tab: string, payload: FormData | Record<string, unknown>, endpoint: string) {
-    setLoadingTab(tab);
+  // Utility function to convert the picked file into a Base64 stream string for Gemini Vision
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => {
+        const base64String = reader.result as string;
+        // Clean out the mime prefix header string line if present
+        const rawBase64 = base64String.split(",")[1];
+        resolve(rawBase64);
+      };
+      reader.onerror = (error) => reject(error);
+    });
+  };
+
+  const handleColorMatchRequest = async () => {
+    if (!matchFile) return;
+    setLoadingTab("match");
+    setColorResults([]);
+
     try {
-      const url = `${BACKEND_URL ?? ""}${endpoint}`;
-      await fetch(url, {
-        method: "POST",
-        body:
-          payload instanceof FormData ? payload : JSON.stringify(payload),
-        headers:
-          payload instanceof FormData
-            ? undefined
-            : { "Content-Type": "application/json" },
-      }).catch(() => {
-        /* frontend-only stub */
+      const base64Data = await fileToBase64(matchFile);
+      
+      // Execute the server function we linked to your Render backend
+      const response = await recommendColors({
+        imageBase64: base64Data,
+        mimeType: matchFile.type,
+        roomType: roomType,
+        style: stylePreference,
+        notes: contractorNotes,
       });
+
+      if (response && response.recommendations) {
+        setColorResults(response.recommendations);
+      }
+    } catch (error) {
+      console.error("AI Color Match Execution fault:", error);
     } finally {
-      // keep spinner visible briefly to satisfy "immediately trigger loading"
-      setTimeout(() => setLoadingTab(null), 1200);
+      setLoadingTab(null);
     }
-  }
+  };
 
   return (
     <div className="space-y-6">
@@ -164,21 +190,63 @@ function AiDesignToolsPage() {
               </p>
             </div>
 
-            <UploadBox file={matchFile} onFile={setMatchFile} />
+            <div className="grid gap-4 md:grid-cols-2">
+              <UploadBox file={matchFile} onFile={setMatchFile} />
+              
+              {/* Context inputs to give Gemini premium clarity parameters */}
+              <div className="space-y-3 rounded-xl border border-border bg-muted/10 p-4">
+                <div>
+                  <Label className="text-xs font-bold uppercase tracking-wider">Room / Surface Type</Label>
+                  <Select value={roomType} onValueChange={setRoomType}>
+                    <SelectTrigger className="mt-1 bg-background">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Living Room">Living Room</SelectItem>
+                      <SelectItem value="Exterior Siding">Exterior Siding</SelectItem>
+                      <SelectItem value="Kitchen">Kitchen</SelectItem>
+                      <SelectItem value="Bedroom">Bedroom</SelectItem>
+                      <SelectItem value="Commercial Space">Commercial Space</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <Label className="text-xs font-bold uppercase tracking-wider">Style Preference</Label>
+                  <Select value={stylePreference} onValueChange={setStylePreference}>
+                    <SelectTrigger className="mt-1 bg-background">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Modern">Modern / Clean</SelectItem>
+                      <SelectItem value="Coastal">Coastal / Bahamian Vibe</SelectItem>
+                      <SelectItem value="Traditional">Traditional</SelectItem>
+                      <SelectItem value="Minimalist">Minimalist</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <Label className="text-xs font-bold uppercase tracking-wider">Contractor Notes</Label>
+                  <Textarea 
+                    placeholder="High humidity area, client wants light trim..." 
+                    value={contractorNotes}
+                    onChange={(e) => setContractorNotes(e.target.value)}
+                    className="mt-1 bg-background resize-none h-16"
+                  />
+                </div>
+              </div>
+            </div>
 
             <div className="flex justify-end">
               <Button
-                onClick={() => {
-                  const fd = new FormData();
-                  if (matchFile) fd.append("image", matchFile);
-                  submit("match", fd, "/api/color-match");
-                }}
-                disabled={loadingTab === "match"}
-                className="bg-accent text-accent-foreground hover:bg-accent/90"
+                onClick={handleColorMatchRequest}
+                disabled={loadingTab === "match" || !matchFile}
+                className="bg-accent text-accent-foreground hover:bg-accent/90 w-full sm:w-auto"
               >
                 {loadingTab === "match" ? (
                   <>
-                    <Loader2 className="h-4 w-4 animate-spin" /> Waking up AI engine...
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" /> Processing Textures...
                   </>
                 ) : (
                   <>Find Matching Colors</>
@@ -188,237 +256,3 @@ function AiDesignToolsPage() {
 
             <div>
               <h3 className="mb-2 text-sm font-semibold text-foreground">Results</h3>
-              <div className="min-h-[180px] rounded-xl border border-border bg-muted/20 p-4">
-                {loadingTab === "match" ? (
-                  <LoadingSpinner />
-                ) : (
-                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-                    {[...Array(8)].map((_, i) => (
-                      <div
-                        key={i}
-                        className="flex h-24 items-center justify-center rounded-lg border border-dashed border-border bg-background text-muted-foreground"
-                      >
-                        <ImageIcon className="h-5 w-5 opacity-40" />
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          </Card>
-        </TabsContent>
-
-        {/* TAB 2: VISUALIZER */}
-        <TabsContent value="visualizer" className="mt-6">
-          <Card className="p-6 shadow-sm">
-            <div className="mb-4">
-              <h2 className="text-lg font-semibold text-foreground">Room Visualizer</h2>
-              <p className="text-sm text-muted-foreground">
-                Upload a room photo and preview Sunburst colors on the walls.
-              </p>
-            </div>
-
-            <div className="grid gap-4 lg:grid-cols-[1fr_240px]">
-              <div className="space-y-4">
-                <UploadBox file={vizFile} onFile={setVizFile} label="Upload a room photo" />
-
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div>
-                    <p className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                      Before
-                    </p>
-                    <div className="flex aspect-video items-center justify-center rounded-lg border border-border bg-muted/30 text-muted-foreground">
-                      {vizFile ? (
-                        <img
-                          src={URL.createObjectURL(vizFile)}
-                          alt="before"
-                          className="h-full w-full rounded-lg object-cover"
-                        />
-                      ) : (
-                        <ImageIcon className="h-6 w-6 opacity-40" />
-                      )}
-                    </div>
-                  </div>
-                  <div>
-                    <p className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                      After
-                    </p>
-                    <div
-                      className="flex aspect-video items-center justify-center rounded-lg border border-border bg-muted/30 text-muted-foreground"
-                      style={selectedSwatch ? { backgroundColor: selectedSwatch } : undefined}
-                    >
-                      {loadingTab === "visualizer" ? (
-                        <LoadingSpinner />
-                      ) : selectedSwatch ? null : (
-                        <ImageIcon className="h-6 w-6 opacity-40" />
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex justify-end">
-                  <Button
-                    onClick={() => {
-                      const fd = new FormData();
-                      if (vizFile) fd.append("image", vizFile);
-                      if (selectedSwatch) fd.append("color", selectedSwatch);
-                      submit("visualizer", fd, "/api/visualize");
-                    }}
-                    disabled={loadingTab === "visualizer"}
-                    className="bg-accent text-accent-foreground hover:bg-accent/90"
-                  >
-                    {loadingTab === "visualizer" ? (
-                      <>
-                        <Loader2 className="h-4 w-4 animate-spin" /> Waking up AI engine...
-                      </>
-                    ) : (
-                      <>Apply Color</>
-                    )}
-                  </Button>
-                </div>
-              </div>
-
-              {/* Sidebar swatches */}
-              <aside className="rounded-xl border border-border bg-muted/20 p-3">
-                <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  Swatches
-                </h3>
-                <div className="grid grid-cols-4 gap-2 lg:grid-cols-2">
-                  {swatches.map((s) => (
-                    <button
-                      key={s.hex}
-                      onClick={() => setSelectedSwatch(s.hex)}
-                      className={`group flex flex-col items-start gap-1 rounded-lg border p-1.5 text-left transition ${
-                        selectedSwatch === s.hex
-                          ? "border-accent ring-2 ring-accent/40"
-                          : "border-border hover:border-accent/60"
-                      }`}
-                    >
-                      <span
-                        className="h-8 w-full rounded-md"
-                        style={{ backgroundColor: s.hex }}
-                      />
-                      <span className="truncate text-[10px] font-medium text-foreground">
-                        {s.name}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </aside>
-            </div>
-          </Card>
-        </TabsContent>
-
-        {/* TAB 3: ESTIMATOR */}
-        <TabsContent value="estimator" className="mt-6">
-          <Card className="p-6 shadow-sm">
-            <div className="mb-4">
-              <h2 className="text-lg font-semibold text-foreground">Paint Estimator</h2>
-              <p className="text-sm text-muted-foreground">
-                Enter your room dimensions to estimate gallons needed.
-              </p>
-            </div>
-
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                submit("estimator", form, "/api/estimate");
-              }}
-              className="grid gap-6 lg:grid-cols-[1fr_320px]"
-            >
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-1.5">
-                  <Label htmlFor="width">Room Width (ft)</Label>
-                  <Input
-                    id="width"
-                    type="number"
-                    min="0"
-                    value={form.width}
-                    onChange={(e) => setForm({ ...form, width: e.target.value })}
-                    placeholder="e.g. 12"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="height">Room Height (ft)</Label>
-                  <Input
-                    id="height"
-                    type="number"
-                    min="0"
-                    value={form.height}
-                    onChange={(e) => setForm({ ...form, height: e.target.value })}
-                    placeholder="e.g. 9"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="doors">Doors</Label>
-                  <Input
-                    id="doors"
-                    type="number"
-                    min="0"
-                    value={form.doors}
-                    onChange={(e) => setForm({ ...form, doors: e.target.value })}
-                    placeholder="0"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="windows">Windows</Label>
-                  <Input
-                    id="windows"
-                    type="number"
-                    min="0"
-                    value={form.windows}
-                    onChange={(e) => setForm({ ...form, windows: e.target.value })}
-                    placeholder="0"
-                  />
-                </div>
-
-                <div className="sm:col-span-2">
-                  <Button
-                    type="submit"
-                    disabled={loadingTab === "estimator"}
-                    className="w-full bg-accent text-accent-foreground hover:bg-accent/90 sm:w-auto"
-                  >
-                    {loadingTab === "estimator" ? (
-                      <>
-                        <Loader2 className="h-4 w-4 animate-spin" /> Waking up AI engine...
-                      </>
-                    ) : (
-                      <>Calculate Estimate</>
-                    )}
-                  </Button>
-                </div>
-              </div>
-
-              <Card className="h-fit border-accent/20 bg-accent/5 p-4">
-                <h3 className="mb-3 text-sm font-semibold text-foreground">Summary</h3>
-                {loadingTab === "estimator" ? (
-                  <LoadingSpinner />
-                ) : (
-                  <dl className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <dt className="text-muted-foreground">Wall area</dt>
-                      <dd className="font-medium text-foreground">— sq ft</dd>
-                    </div>
-                    <div className="flex justify-between">
-                      <dt className="text-muted-foreground">Openings</dt>
-                      <dd className="font-medium text-foreground">— sq ft</dd>
-                    </div>
-                    <div className="flex justify-between">
-                      <dt className="text-muted-foreground">Paintable area</dt>
-                      <dd className="font-medium text-foreground">— sq ft</dd>
-                    </div>
-                    <div className="my-2 h-px bg-border" />
-                    <div className="flex justify-between">
-                      <dt className="font-semibold text-foreground">Gallons needed</dt>
-                      <dd className="font-bold text-accent">—</dd>
-                    </div>
-                  </dl>
-                )}
-              </Card>
-            </form>
-          </Card>
-        </TabsContent>
-      </Tabs>
-    </div>
-  );
-}
