@@ -2,11 +2,10 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState, useRef } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
 import { recommendColors } from "@/lib/ai-advisor.functions"; 
 import {
   Sparkles,
@@ -15,7 +14,7 @@ import {
   Palette,
   Camera,
   Calculator,
-  PaintBucket,
+  Check,
 } from "lucide-react";
 
 export const Route = createFileRoute("/pro-hub/ai-design-tools")({
@@ -36,7 +35,7 @@ function LoadingSpinner() {
   return (
     <div className="flex flex-col items-center justify-center gap-2 p-6 text-sm text-muted-foreground">
       <Loader2 className="h-6 w-6 animate-spin text-accent" />
-      <span>Waking up AI engine... analyzing spaces & calculations...</span>
+      <span>Waking up AI engine... analyzing lighting & textures...</span>
     </div>
   );
 }
@@ -97,14 +96,14 @@ function AiDesignToolsPage() {
 
   // Tab 2 - Visualizer States
   const [vizFile, setVizFile] = useState<File | null>(null);
-  const [selectedSwatch, setSelectedSwatch] = useState<string | null>(null);
+  const [selectedSwatch, setSelectedSwatch] = useState<any | null>(null);
 
   // Tab 3 - Estimator States
   const [width, setWidth] = useState("");
   const [height, setHeight] = useState("");
   const [doors, setDoors] = useState("0");
   const [windows, setWindows] = useState("0");
-  const [calculatedGallons, setCalculatedGallons] = useState<number | null>(null);
+  const [estimationResult, setEstimationResult] = useState<number | null>(null);
 
   const swatches = [
     { name: "Coastal Mist", hex: "#A9C4D6" },
@@ -137,6 +136,7 @@ function AiDesignToolsPage() {
 
     try {
       const base64Data = await fileToBase64(matchFile);
+      
       const response = await recommendColors({
         imageBase64: base64Data,
         mimeType: matchFile.type,
@@ -155,22 +155,20 @@ function AiDesignToolsPage() {
     }
   };
 
-  const calculatePaint = () => {
+  const calculatePaintNeeded = (e: React.FormEvent) => {
+    e.preventDefault();
     const w = parseFloat(width) || 0;
     const h = parseFloat(height) || 0;
     const d = parseInt(doors) || 0;
-    const win = parseInt(windows) || 0;
+    const wnd = parseInt(windows) || 0;
 
     if (w <= 0 || h <= 0) return;
 
-    // Standard paint estimation arithmetic logic
-    const totalWallArea = w * h;
-    const deductions = (d * 21) + (win * 15); 
-    const paintableArea = Math.max(0, totalWallArea - deductions);
-    
-    // 1 Gallon roughly covers 350 sq ft with 2 coats
-    const gallonsNeeded = Math.ceil((paintableArea / 350) * 2);
-    setCalculatedGallons(gallonsNeeded);
+    // Total wall surface area minus standard doors (20 sq ft) and windows (15 sq ft)
+    const totalArea = (w * h) - (d * 20) - (wnd * 15);
+    // Standard paint coverage is roughly 350 square feet per gallon
+    const gallonsNeeded = Math.max(0.5, Math.ceil((totalArea / 350) * 10) / 10);
+    setEstimationResult(gallonsNeeded);
   };
 
   return (
@@ -242,16 +240,6 @@ function AiDesignToolsPage() {
                   </Select>
                 </div>
 
-                <div>
-                  <Label className="text-xs font-bold uppercase tracking-wider">Project Notes (Optional)</Label>
-                  <Textarea 
-                    value={contractorNotes} 
-                    onChange={(e) => setContractorNotes(e.target.value)} 
-                    placeholder="E.g., High humidity area, lots of direct sunlight..." 
-                    className="mt-1 bg-background resize-none h-16"
-                  />
-                </div>
-
                 <Button 
                   onClick={handleColorMatchRequest} 
                   disabled={!matchFile || loadingTab === "match"}
@@ -261,3 +249,13 @@ function AiDesignToolsPage() {
                 </Button>
               </div>
             </div>
+
+            {loadingTab === "match" && <LoadingSpinner />}
+
+            {colorResults.length > 0 ? (
+              <div className="mt-6">
+                <h3 className="text-sm font-medium text-foreground mb-3">AI Recommended Colors</h3>
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  {colorResults.map((color, idx) => (
+                    <Card key={idx} className="flex flex-col items-center justify-center p-4 text-center border bg-background">
+                      <div 
