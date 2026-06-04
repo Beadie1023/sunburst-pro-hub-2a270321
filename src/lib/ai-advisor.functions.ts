@@ -33,8 +33,8 @@ export const recommendColors = createServerFn({ method: "POST" })
       id: string; code: string; name: string; hex: string; collection: string; recommended_use: string | null;
     }>;
 
-    // 🌐 Redirecting directly to your permanent live Render backend
-    const baseUrl = "https://sunburst-b88c.onrender.com"; 
+    // Redirecting directly to your permanent live Render backend
+    const baseUrl = "https://onrender.com"; 
 
     const aiRes = await fetch(`${baseUrl}/api/color-match`, {
       method: "POST",
@@ -57,9 +57,8 @@ export const recommendColors = createServerFn({ method: "POST" })
     }
 
     const aiJson = await aiRes.json();
-       const aiJson = await aiRes.json();
     
-    // Safely extract content from either our custom Flask format or OpenAI format
+    // Cleaned syntax to prevent double-dot compilation errors
     let content = "{}";
     if (aiJson?.choices?.[0]?.message?.content) {
       content = aiJson.choices[0].message.content;
