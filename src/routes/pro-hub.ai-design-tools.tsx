@@ -7,8 +7,6 @@ import {
   Upload,
   Loader2,
   AlertCircle,
-  Download,
-  RotateCcw,
 } from "lucide-react";
 
 export const Route = createFileRoute("/pro-hub/ai-design-tools")({
@@ -132,19 +130,19 @@ function AiDesignToolsPage() {
 
     try {
       const base64Data = await fileToBase64(matchFile);
+      const fileMime = matchFile.type || "image/jpeg";
 
-      // Unified request payload argument
+      // FIXED STRUCTURE: Matched perfectly with the backend Zod validation keys
       const response = await recommendColors({
-        image: base64Data,
-        roomType,
-        stylePreference,
-        contractorNotes,
+        imageBase64: base64Data,
+        mimeType: fileMime,
+        roomType: roomType,
+        style: stylePreference,
+        notes: contractorNotes,
       });
 
-      if (response && response.colors) {
-        setColorResults(response.colors);
-      } else if (Array.isArray(response)) {
-        setColorResults(response);
+      if (response && response.recommendations) {
+        setColorResults(response.recommendations);
       }
     } catch (error: any) {
       console.error(error);
@@ -221,16 +219,25 @@ function AiDesignToolsPage() {
           {colorResults.length > 0 && (
             <Card className="p-4 space-y-3">
               <h3 className="font-semibold text-sm">Recommended Colors</h3>
-              <div className="grid grid-cols-2 gap-2">
-                {colorResults.map((color: any, i: number) => (
-                  <div key={i} className="flex items-center gap-2 p-2 border rounded-md">
-                    <div 
-                      className="w-6 h-6 rounded-full border" 
-                      style={{ backgroundColor: color.hex || '#ccc' }} 
-                    />
-                    <div className="text-xs">
-                      <p className="font-medium">{color.name || "Unnamed Color"}</p>
-                      <p className="text-muted-foreground uppercase">{color.hex || ""}</p>
+              <div className="space-y-2">
+                {colorResults.map((rec: any, i: number) => (
+                  <div key={i} className="flex flex-col p-3 border rounded-md bg-muted/20 gap-2">
+                    <div className="flex items-center gap-3">
+                      <div 
+                        className="w-8 h-8 rounded-full border shadow-sm flex-shrink-0" 
+                        style={{ backgroundColor: rec.color?.hex || '#ccc' }} 
+                      />
+                      <div>
+                        <p className="font-semibold text-sm">{rec.color?.name || "Unnamed Color"}</p>
+                        <p className="text-xs text-muted-foreground uppercase font-mono">{rec.color?.hex || ""}</p>
+                      </div>
+                      <span className="ml-auto text-xs font-semibold px-2 py-0.5 bg-accent/10 text-accent rounded uppercase">
+                        {rec.role || "primary"}
+                      </span>
+                    </div>
+                    <div className="text-xs text-muted-foreground border-t pt-2 mt-1">
+                      <p><strong className="text-foreground">Finish:</strong> {rec.finish || "Satin"}</p>
+                      <p className="mt-1">{rec.reason || ""}</p>
                     </div>
                   </div>
                 ))}
