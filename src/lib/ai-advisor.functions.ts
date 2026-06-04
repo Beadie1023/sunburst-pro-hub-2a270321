@@ -7,8 +7,6 @@ import {
   Upload,
   Loader2,
   AlertCircle,
-  Download,
-  RotateCcw,
 } from "lucide-react";
 
 export const Route = createFileRoute("/pro-hub/ai-design-tools")({
@@ -33,7 +31,6 @@ function LoadingSpinner() {
     </div>
   );
 }
-
 
 function ErrorCard({ message }: { message: string }) {
   return (
@@ -135,7 +132,6 @@ function AiDesignToolsPage() {
       const base64Data = await fileToBase64(matchFile);
       const fileMime = matchFile.type || "image/jpeg";
 
-      // CRITICAL FIX: Wrapped data parameter utilizing exact Zod-schema keys 
       const response = await recommendColors({
         data: {
           imageBase64: base64Data,
