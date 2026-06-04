@@ -1,7 +1,7 @@
 import { createFileRoute, Link, Outlet, useRouterState, redirect } from "@tanstack/react-router";
 import { useState } from "react";
 import { Header } from "@/components/Header";
-import { Palette, FolderKanban, Heart, RotateCcw, Wallet, Search, Wifi, Menu, X, Sparkles } from "lucide-react";
+import { Palette, FolderKanban, Heart, RotateCcw, Wallet, Search, Wifi, Menu, X, Sparkles, Bot } from "lucide-react";
 import { Input } from "@/components/ui/input";
 
 export const Route = createFileRoute("/pro-hub")({
@@ -21,6 +21,7 @@ export const Route = createFileRoute("/pro-hub")({
 
 const NAV = [
   { to: "/pro-hub", label: "Global Catalog", icon: Palette, exact: true },
+  { to: "/pro-hub/ai-hub", label: "AI Hub", icon: Bot },
   { to: "/pro-hub/ai-advisor", label: "AI Color Advisor", icon: Sparkles },
   { to: "/pro-hub/projects", label: "My Projects", icon: FolderKanban },
   { to: "/pro-hub/saved", label: "Saved Colors", icon: Heart },

@@ -28,6 +28,7 @@ import { Route as ProHubSavedRouteImport } from './routes/pro-hub.saved'
 import { Route as ProHubReorderRouteImport } from './routes/pro-hub.reorder'
 import { Route as ProHubProjectsRouteImport } from './routes/pro-hub.projects'
 import { Route as ProHubCreditRouteImport } from './routes/pro-hub.credit'
+import { Route as ProHubAiHubRouteImport } from './routes/pro-hub.ai-hub'
 import { Route as ProHubAiAdvisorRouteImport } from './routes/pro-hub.ai-advisor'
 import { Route as OrderConfirmationOrderIdRouteImport } from './routes/order-confirmation.$orderId'
 import { Route as DashboardProductsRouteImport } from './routes/dashboard.products'
@@ -138,6 +139,11 @@ const ProHubCreditRoute = ProHubCreditRouteImport.update({
   path: '/credit',
   getParentRoute: () => ProHubRoute,
 } as any)
+const ProHubAiHubRoute = ProHubAiHubRouteImport.update({
+  id: '/ai-hub',
+  path: '/ai-hub',
+  getParentRoute: () => ProHubRoute,
+} as any)
 const ProHubAiAdvisorRoute = ProHubAiAdvisorRouteImport.update({
   id: '/ai-advisor',
   path: '/ai-advisor',
@@ -235,6 +241,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/products': typeof DashboardProductsRoute
   '/order-confirmation/$orderId': typeof OrderConfirmationOrderIdRoute
   '/pro-hub/ai-advisor': typeof ProHubAiAdvisorRoute
+  '/pro-hub/ai-hub': typeof ProHubAiHubRoute
   '/pro-hub/credit': typeof ProHubCreditRoute
   '/pro-hub/projects': typeof ProHubProjectsRouteWithChildren
   '/pro-hub/reorder': typeof ProHubReorderRoute
@@ -269,6 +276,7 @@ export interface FileRoutesByTo {
   '/dashboard/products': typeof DashboardProductsRoute
   '/order-confirmation/$orderId': typeof OrderConfirmationOrderIdRoute
   '/pro-hub/ai-advisor': typeof ProHubAiAdvisorRoute
+  '/pro-hub/ai-hub': typeof ProHubAiHubRoute
   '/pro-hub/credit': typeof ProHubCreditRoute
   '/pro-hub/projects': typeof ProHubProjectsRouteWithChildren
   '/pro-hub/reorder': typeof ProHubReorderRoute
@@ -305,6 +313,7 @@ export interface FileRoutesById {
   '/dashboard/products': typeof DashboardProductsRoute
   '/order-confirmation/$orderId': typeof OrderConfirmationOrderIdRoute
   '/pro-hub/ai-advisor': typeof ProHubAiAdvisorRoute
+  '/pro-hub/ai-hub': typeof ProHubAiHubRoute
   '/pro-hub/credit': typeof ProHubCreditRoute
   '/pro-hub/projects': typeof ProHubProjectsRouteWithChildren
   '/pro-hub/reorder': typeof ProHubReorderRoute
@@ -342,6 +351,7 @@ export interface FileRouteTypes {
     | '/dashboard/products'
     | '/order-confirmation/$orderId'
     | '/pro-hub/ai-advisor'
+    | '/pro-hub/ai-hub'
     | '/pro-hub/credit'
     | '/pro-hub/projects'
     | '/pro-hub/reorder'
@@ -376,6 +386,7 @@ export interface FileRouteTypes {
     | '/dashboard/products'
     | '/order-confirmation/$orderId'
     | '/pro-hub/ai-advisor'
+    | '/pro-hub/ai-hub'
     | '/pro-hub/credit'
     | '/pro-hub/projects'
     | '/pro-hub/reorder'
@@ -411,6 +422,7 @@ export interface FileRouteTypes {
     | '/dashboard/products'
     | '/order-confirmation/$orderId'
     | '/pro-hub/ai-advisor'
+    | '/pro-hub/ai-hub'
     | '/pro-hub/credit'
     | '/pro-hub/projects'
     | '/pro-hub/reorder'
@@ -577,6 +589,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProHubCreditRouteImport
       parentRoute: typeof ProHubRoute
     }
+    '/pro-hub/ai-hub': {
+      id: '/pro-hub/ai-hub'
+      path: '/ai-hub'
+      fullPath: '/pro-hub/ai-hub'
+      preLoaderRoute: typeof ProHubAiHubRouteImport
+      parentRoute: typeof ProHubRoute
+    }
     '/pro-hub/ai-advisor': {
       id: '/pro-hub/ai-advisor'
       path: '/ai-advisor'
@@ -740,6 +759,7 @@ const ProHubProjectsRouteWithChildren = ProHubProjectsRoute._addFileChildren(
 
 interface ProHubRouteChildren {
   ProHubAiAdvisorRoute: typeof ProHubAiAdvisorRoute
+  ProHubAiHubRoute: typeof ProHubAiHubRoute
   ProHubCreditRoute: typeof ProHubCreditRoute
   ProHubProjectsRoute: typeof ProHubProjectsRouteWithChildren
   ProHubReorderRoute: typeof ProHubReorderRoute
@@ -749,6 +769,7 @@ interface ProHubRouteChildren {
 
 const ProHubRouteChildren: ProHubRouteChildren = {
   ProHubAiAdvisorRoute: ProHubAiAdvisorRoute,
+  ProHubAiHubRoute: ProHubAiHubRoute,
   ProHubCreditRoute: ProHubCreditRoute,
   ProHubProjectsRoute: ProHubProjectsRouteWithChildren,
   ProHubReorderRoute: ProHubReorderRoute,
@@ -781,3 +802,12 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { createStart } from '@tanstack/react-start'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+  }
+}
