@@ -42,7 +42,7 @@ export async function recommendColors(input: any) {
   }>;
 
   // 4. Force your exact Render backend URL explicitly
-  const renderApiUrl = "https://onrender.com";
+  const renderApiUrl = "https://sunburst-b88c.onrender.com";
 
   // 5. Send directly to your Render backend
   const aiRes = await fetch(`${renderApiUrl}/api/color-match`, {
