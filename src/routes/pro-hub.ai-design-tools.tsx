@@ -134,11 +134,13 @@ function AiDesignToolsPage() {
 
       // FIXED STRUCTURE: Matched perfectly with the backend Zod validation keys
       const response = await recommendColors({
-        imageBase64: base64Data,
-        mimeType: fileMime,
-        roomType: roomType,
-        style: stylePreference,
-        notes: contractorNotes,
+        data: {
+          imageBase64: base64Data,
+          mimeType: fileMime,
+          roomType: roomType,
+          style: stylePreference,
+          notes: contractorNotes,
+        },
       });
 
       if (response && response.recommendations) {
