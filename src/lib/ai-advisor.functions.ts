@@ -22,9 +22,9 @@ export async function recommendColors(input: any) {
   // 2. Run client-side validation against the payload
   const data = InputSchema.parse(payloadToValidate);
 
-  // 3. Fetch Supabase configurations using Vite's client-exposed variables
+  // 3. Fetch Supabase configurations using Lovable's exact client variable signatures
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-  const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+  const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY; 
   
   if (!supabaseUrl || !supabaseKey) {
     throw new Error("Supabase client environment variables are missing");
