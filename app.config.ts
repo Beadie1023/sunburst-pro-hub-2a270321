@@ -1,14 +1,10 @@
-import { defineConfig } from "@tanstack/router-plugin/vite";
+import { defineConfig } from "@tanstack/react-start/config";
 import tsconfigPaths from "vite-tsconfig-paths";
 
-export default {
+export default defineConfig({
   vite: {
     plugins: [
-      defineConfig({
-        routesDirectory: "./src/routes",
-        generatedRouteTree: "./src/routeTree.gen.ts",
-      }),
       tsconfigPaths(),
     ],
   },
-};
+});
