@@ -67,10 +67,10 @@ export async function recommendColors(input: any) {
 
   const aiJson = await aiRes.json();
   
-  // 6. Parse response content safely
+  // 6. Parse response content safely (Typo fixed here)
   let content = "{}";
-  if (aiJson?.choices?.?.message?.content) {
-    content = aiJson.choices.message.content;
+  if (aiJson?.choices?.[0]?.message?.content) {
+    content = aiJson.choices[0].message.content;
   } else if (aiJson?.ai_response) {
     content = aiJson.ai_response;
   }
