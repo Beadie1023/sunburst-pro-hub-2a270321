@@ -41,7 +41,7 @@ export async function recommendColors(input: any) {
     id: string; code: string; name: string; hex: string; collection: string; recommended_use: string | null;
   }>;
 
-  // 4. Force your exact Render backend URL explicitly to bypass broken env configurations
+  // 4. Force your exact Render backend URL explicitly
   const renderApiUrl = "https://onrender.com";
 
   // 5. Send directly to your Render backend
@@ -67,11 +67,11 @@ export async function recommendColors(input: any) {
 
   const aiJson = await aiRes.json();
   
-  // 6. Parse response content safely (Typo fixed here)
+  // 6. Parse response content safely with perfectly clean syntax
   let content = "{}";
-  if (aiJson?.choices?.[0]?.message?.content) {
+  if (aiJson && aiJson.choices && aiJson.choices[0] && aiJson.choices[0].message && aiJson.choices[0].message.content) {
     content = aiJson.choices[0].message.content;
-  } else if (aiJson?.ai_response) {
+  } else if (aiJson && aiJson.ai_response) {
     content = aiJson.ai_response;
   }
 
