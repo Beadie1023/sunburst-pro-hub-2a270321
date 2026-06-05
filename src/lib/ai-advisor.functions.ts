@@ -41,8 +41,8 @@ export async function recommendColors(input: any) {
     id: string; code: string; name: string; hex: string; collection: string; recommended_use: string | null;
   }>;
 
-  // 4. Define the Render URL
-  const renderApiUrl = import.meta.env.VITE_RENDER_API_URL || "https://onrender.com";
+  // 4. Force your exact Render backend URL explicitly to bypass broken env configurations
+  const renderApiUrl = "https://onrender.com";
 
   // 5. Send directly to your Render backend
   const aiRes = await fetch(`${renderApiUrl}/api/color-match`, {
@@ -69,8 +69,8 @@ export async function recommendColors(input: any) {
   
   // 6. Parse response content safely
   let content = "{}";
-  if (aiJson?.choices?.[0]?.message?.content) {
-    content = aiJson.choices[0].message.content;
+  if (aiJson?.choices?.?.message?.content) {
+    content = aiJson.choices.message.content;
   } else if (aiJson?.ai_response) {
     content = aiJson.ai_response;
   }
