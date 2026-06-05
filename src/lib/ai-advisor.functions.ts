@@ -15,14 +15,14 @@ interface Recommendation {
   reason: string;
 }
 
-// Input type inference matching your old schema structure
-type RecommendColorsInput = z.infer<typeof InputSchema>;
+export async function recommendColors(input: any) {
+  // 1. Extract payload safely whether it's wrapped in .data or sent directly
+  const payloadToValidate = input && typeof input === "object" && "data" in input ? input.data : input;
 
-export async function recommendColors(input: RecommendColorsInput) {
-  // 1. Client-side Validation
-  const data = InputSchema.parse(input);
+  // 2. Run client-side validation against the payload
+  const data = InputSchema.parse(payloadToValidate);
 
-  // 2. Fetch Supabase configurations using Vite's client-exposed variables
+  // 3. Fetch Supabase configurations using Vite's client-exposed variables
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
   const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
   
@@ -41,10 +41,10 @@ export async function recommendColors(input: RecommendColorsInput) {
     id: string; code: string; name: string; hex: string; collection: string; recommended_use: string | null;
   }>;
 
-  // 3. Define the Render URL (using Vite environment var with hardcoded fallback)
-  const renderApiUrl = import.meta.env.VITE_RENDER_API_URL || "https://sunburst-b88c.onrender.com";
+  // 4. Define the Render URL
+  const renderApiUrl = import.meta.env.VITE_RENDER_API_URL || "https://onrender.com";
 
-  // 4. Send directly to your Render backend, completely bypassing Lovable's proxy bridge
+  // 5. Send directly to your Render backend
   const aiRes = await fetch(`${renderApiUrl}/api/color-match`, {
     method: "POST",
     headers: {
@@ -67,7 +67,7 @@ export async function recommendColors(input: RecommendColorsInput) {
 
   const aiJson = await aiRes.json();
   
-  // 5. Parse response content safely
+  // 6. Parse response content safely
   let content = "{}";
   if (aiJson?.choices?.[0]?.message?.content) {
     content = aiJson.choices[0].message.content;
@@ -84,7 +84,7 @@ export async function recommendColors(input: RecommendColorsInput) {
   
   const recs = (parsed.recommendations ?? []).filter((r) => r && palette.some((p) => p.id === r.id));
 
-  // 6. Hydrate recommendations back with the full color objects
+  // 7. Hydrate recommendations back with the full color objects
   const enriched = recs.map((r) => {
     const c = palette.find((p) => p.id === r.id)!;
     return { ...r, color: c };
