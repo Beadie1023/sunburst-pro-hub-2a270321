@@ -1,0 +1,6 @@
+{
+  "name": "Sunburst Pro Hub",
+  "description": "Production-ready contractor SaaS with CRM, automated quote building, Kanban project pipelines, and a Meta WhatsApp Cloud API simulator.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
