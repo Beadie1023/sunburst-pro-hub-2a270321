@@ -3,7 +3,7 @@ import { useEffect } from "react";
 import { Header } from "@/components/Header";
 import { useAuth } from "@/lib/auth";
 import { Card } from "@/components/ui/card";
-import { Loader2, Package, Users, ClipboardList, LayoutDashboard, Boxes, PhoneCall, Palette } from "lucide-react";
+import { Loader2, Package, Users, ClipboardList, LayoutDashboard, Boxes, PhoneCall, Palette, ScanLine } from "lucide-react";
 
 export const Route = createFileRoute("/dashboard")({
   component: DashboardLayout,
@@ -37,6 +37,7 @@ function DashboardLayout() {
     { to: "/dashboard/products", label: "Products", icon: Package },
     { to: "/dashboard/bundles", label: "Bundles", icon: Boxes },
     { to: "/dashboard/colors", label: "Color Catalog", icon: Palette },
+    { to: "/dashboard/color-matcher", label: "Color Matcher", icon: ScanLine },
   ];
 
   const isOverview = loc.pathname === "/dashboard" || loc.pathname === "/dashboard/";
