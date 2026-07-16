@@ -332,30 +332,6 @@ export type Database = {
         }
         Relationships: []
       }
-      palette_import: {
-        Row: {
-          code: string
-          collection: string
-          hex: string
-          name: string
-          recommended_use: string | null
-        }
-        Insert: {
-          code: string
-          collection: string
-          hex: string
-          name: string
-          recommended_use?: string | null
-        }
-        Update: {
-          code?: string
-          collection?: string
-          hex?: string
-          name?: string
-          recommended_use?: string | null
-        }
-        Relationships: []
-      }
       products: {
         Row: {
           brand: string | null
