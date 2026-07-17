@@ -6,7 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 const searchSchema = z.object({
- projectId: z.string().optional(),
+ projectId: z.string.optional,
 });
 
 export const Route = createFileRoute("/pro-hub/color-matcher")({
@@ -15,7 +15,7 @@ export const Route = createFileRoute("/pro-hub/color-matcher")({
 });
 
 function ColorMatcherPage() {
- const { projectId } = Route.useSearch();
+ const { projectId } = Route.useSearch;
 
  const handleAddToProject = async (color: SunburstColor) => {
  if (!projectId) {
