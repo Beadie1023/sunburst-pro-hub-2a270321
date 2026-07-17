@@ -25,6 +25,10 @@ interface ProjectColor {
   id: string; finish: string; gallons: number;
   paint_color_id: string;
   paint_colors: { code: string; name: string; hex: string; coverage_sqft: number } | null;
+  matcher_color_id?: string | null;
+  matcher_color_name?: string | null;
+  matcher_color_hex?: string | null;
+  matcher_sku?: string | null;
 }
 interface ProductLite {
   id: string; sku: string; name: string; unit: string;
@@ -279,12 +283,16 @@ function ProjectDetail() {
             </div>
           ) : (
             <ul className="divide-y divide-border">
-              {colors.map((c) => (
+              {colors.map((c) => {
+                const displayHex = c.paint_colors?.hex ?? c.matcher_color_hex ?? undefined;
+                const displayCode = c.paint_colors?.code ?? c.matcher_sku ?? null;
+                const displayName = c.paint_colors?.name ?? c.matcher_color_name ?? "Unnamed color";
+                return (
                 <li key={c.id} className="flex flex-wrap items-center gap-3 py-3">
-                  <div className="h-12 w-12 shrink-0 rounded-md border border-border" style={{ backgroundColor: c.paint_colors?.hex }} />
+                  <div className="h-12 w-12 shrink-0 rounded-md border border-border" style={{ backgroundColor: displayHex }} />
                   <div className="min-w-0 flex-1">
-                    <div className="font-mono text-[10px] text-accent">{c.paint_colors?.code}</div>
-                    <div className="truncate font-semibold">{c.paint_colors?.name}</div>
+                    {displayCode && <div className="font-mono text-[10px] text-accent">{displayCode}</div>}
+                    <div className="truncate font-semibold">{displayName}</div>
                   </div>
                   <Input
                     type="number" min={1}
@@ -311,7 +319,8 @@ function ProjectDetail() {
                     <Trash2 className="h-4 w-4 text-destructive" />
                   </Button>
                 </li>
-              ))}
+                );
+              })}
             </ul>
           )}
         </Card>
