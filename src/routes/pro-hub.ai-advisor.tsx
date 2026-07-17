@@ -1,6 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, type ChangeEvent } from "react";
-import { useServerFn } from "@tanstack/react-start";
 import { recommendColors } from "@/lib/ai-advisor.functions";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -34,7 +33,7 @@ interface Recommendation {
 
 function AdvisorPage() {
   const { user } = useAuth();
-  const recommend = useServerFn(recommendColors);
+  const recommend = recommendColors;
   const [imageDataUrl, setImageDataUrl] = useState<string | null>(null);
   const [imageBase64, setImageBase64] = useState<string | null>(null);
   const [mimeType, setMimeType] = useState<string>("image/jpeg");
