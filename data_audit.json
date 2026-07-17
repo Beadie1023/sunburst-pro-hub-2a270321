@@ -1,5 +1,61 @@
 [
   {
+    "id": "audit_1784248340637_xz6de",
+    "timestamp": "2026-07-17T00:32:20.637Z",
+    "action": "CONNECTION_FAILURE",
+    "type": "SYSTEM",
+    "countOrId": "HEARTBEAT_FAIL_7",
+    "details": "Database connection heartbeat was degraded: Invalid API key"
+  },
+  {
+    "id": "audit_1784248310634_3k9yn",
+    "timestamp": "2026-07-17T00:31:50.634Z",
+    "action": "CONNECTION_FAILURE",
+    "type": "SYSTEM",
+    "countOrId": "HEARTBEAT_FAIL_6",
+    "details": "Database connection heartbeat was degraded: Invalid API key"
+  },
+  {
+    "id": "audit_1784248280664_naits",
+    "timestamp": "2026-07-17T00:31:20.664Z",
+    "action": "CONNECTION_FAILURE",
+    "type": "SYSTEM",
+    "countOrId": "HEARTBEAT_FAIL_5",
+    "details": "Database connection heartbeat was degraded: Invalid API key"
+  },
+  {
+    "id": "audit_1784248250633_gpmw2",
+    "timestamp": "2026-07-17T00:30:50.633Z",
+    "action": "CONNECTION_FAILURE",
+    "type": "SYSTEM",
+    "countOrId": "HEARTBEAT_FAIL_4",
+    "details": "Database connection heartbeat was degraded: Invalid API key"
+  },
+  {
+    "id": "audit_1784248220634_nr7k5",
+    "timestamp": "2026-07-17T00:30:20.634Z",
+    "action": "CONNECTION_FAILURE",
+    "type": "SYSTEM",
+    "countOrId": "HEARTBEAT_FAIL_3",
+    "details": "Database connection heartbeat was degraded: Invalid API key"
+  },
+  {
+    "id": "audit_1784248190647_wtxh2",
+    "timestamp": "2026-07-17T00:29:50.647Z",
+    "action": "CONNECTION_FAILURE",
+    "type": "SYSTEM",
+    "countOrId": "HEARTBEAT_FAIL_2",
+    "details": "Database connection heartbeat was degraded: Invalid API key"
+  },
+  {
+    "id": "audit_1784248160685_z6sbc",
+    "timestamp": "2026-07-17T00:29:20.685Z",
+    "action": "CONNECTION_FAILURE",
+    "type": "SYSTEM",
+    "countOrId": "HEARTBEAT_FAIL_1",
+    "details": "Database connection heartbeat was degraded: Invalid API key"
+  },
+  {
     "id": "audit_1784212093143_17coy",
     "timestamp": "2026-07-16T14:28:13.143Z",
     "action": "CONNECTION_FAILURE",
