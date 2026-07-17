@@ -422,6 +422,10 @@ export type Database = {
           finish: string
           gallons: number
           id: string
+          matcher_color_hex: string | null
+          matcher_color_id: string | null
+          matcher_color_name: string | null
+          matcher_sku: string | null
           notes: string | null
           paint_color_id: string
           project_id: string
@@ -431,6 +435,10 @@ export type Database = {
           finish?: string
           gallons?: number
           id?: string
+          matcher_color_hex?: string | null
+          matcher_color_id?: string | null
+          matcher_color_name?: string | null
+          matcher_sku?: string | null
           notes?: string | null
           paint_color_id: string
           project_id: string
@@ -440,6 +448,10 @@ export type Database = {
           finish?: string
           gallons?: number
           id?: string
+          matcher_color_hex?: string | null
+          matcher_color_id?: string | null
+          matcher_color_name?: string | null
+          matcher_sku?: string | null
           notes?: string | null
           paint_color_id?: string
           project_id?: string
