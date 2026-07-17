@@ -271,7 +271,11 @@ function ProjectDetail() {
           </div>
           {colors.length === 0 ? (
             <div className="rounded-md border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
-              No colors yet. Browse the <Link to="/pro-hub" className="text-accent underline">Global Catalog</Link> and tap a swatch to add it here.
+              No colors yet. Browse the <Link to="/pro-hub" className="text-accent underline">Global Catalog</Link> or use the <Link
+                to="/pro-hub/color-matcher"
+                search={{ projectId }}
+                className="text-accent underline"
+              >Color Matcher</Link> to match a competitor shade.
             </div>
           ) : (
             <ul className="divide-y divide-border">
