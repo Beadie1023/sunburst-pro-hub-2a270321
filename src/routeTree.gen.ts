@@ -28,6 +28,7 @@ import { Route as ProHubSavedRouteImport } from './routes/pro-hub.saved'
 import { Route as ProHubReorderRouteImport } from './routes/pro-hub.reorder'
 import { Route as ProHubProjectsRouteImport } from './routes/pro-hub.projects'
 import { Route as ProHubCreditRouteImport } from './routes/pro-hub.credit'
+import { Route as ProHubColorMatcherRouteImport } from './routes/pro-hub.color-matcher'
 import { Route as ProHubAiHubRouteImport } from './routes/pro-hub.ai-hub'
 import { Route as ProHubAiDesignToolsRouteImport } from './routes/pro-hub.ai-design-tools'
 import { Route as ProHubAiAdvisorRouteImport } from './routes/pro-hub.ai-advisor'
@@ -39,6 +40,7 @@ import { Route as DashboardColorsRouteImport } from './routes/dashboard.colors'
 import { Route as DashboardClientsRouteImport } from './routes/dashboard.clients'
 import { Route as DashboardBundlesRouteImport } from './routes/dashboard.bundles'
 import { Route as AdminLoginRouteImport } from './routes/admin.login'
+import { Route as AdminColorMatcherRouteImport } from './routes/admin.color-matcher'
 import { Route as AdminChangePasswordRouteImport } from './routes/admin.change-password'
 import { Route as ProHubProjectsProjectIdRouteImport } from './routes/pro-hub.projects.$projectId'
 import { Route as DashboardOrdersNewRouteImport } from './routes/dashboard.orders.new'
@@ -140,6 +142,11 @@ const ProHubCreditRoute = ProHubCreditRouteImport.update({
   path: '/credit',
   getParentRoute: () => ProHubRoute,
 } as any)
+const ProHubColorMatcherRoute = ProHubColorMatcherRouteImport.update({
+  id: '/color-matcher',
+  path: '/color-matcher',
+  getParentRoute: () => ProHubRoute,
+} as any)
 const ProHubAiHubRoute = ProHubAiHubRouteImport.update({
   id: '/ai-hub',
   path: '/ai-hub',
@@ -196,6 +203,11 @@ const AdminLoginRoute = AdminLoginRouteImport.update({
   path: '/admin/login',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminColorMatcherRoute = AdminColorMatcherRouteImport.update({
+  id: '/admin/color-matcher',
+  path: '/admin/color-matcher',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminChangePasswordRoute = AdminChangePasswordRouteImport.update({
   id: '/admin/change-password',
   path: '/admin/change-password',
@@ -238,6 +250,7 @@ export interface FileRoutesByFullPath {
   '/pro-hub': typeof ProHubRouteWithChildren
   '/products': typeof ProductsRoute
   '/admin/change-password': typeof AdminChangePasswordRoute
+  '/admin/color-matcher': typeof AdminColorMatcherRoute
   '/admin/login': typeof AdminLoginRoute
   '/dashboard/bundles': typeof DashboardBundlesRoute
   '/dashboard/clients': typeof DashboardClientsRoute
@@ -249,6 +262,7 @@ export interface FileRoutesByFullPath {
   '/pro-hub/ai-advisor': typeof ProHubAiAdvisorRoute
   '/pro-hub/ai-design-tools': typeof ProHubAiDesignToolsRoute
   '/pro-hub/ai-hub': typeof ProHubAiHubRoute
+  '/pro-hub/color-matcher': typeof ProHubColorMatcherRoute
   '/pro-hub/credit': typeof ProHubCreditRoute
   '/pro-hub/projects': typeof ProHubProjectsRouteWithChildren
   '/pro-hub/reorder': typeof ProHubReorderRoute
@@ -274,6 +288,7 @@ export interface FileRoutesByTo {
   '/marine': typeof MarineRoute
   '/products': typeof ProductsRoute
   '/admin/change-password': typeof AdminChangePasswordRoute
+  '/admin/color-matcher': typeof AdminColorMatcherRoute
   '/admin/login': typeof AdminLoginRoute
   '/dashboard/bundles': typeof DashboardBundlesRoute
   '/dashboard/clients': typeof DashboardClientsRoute
@@ -285,6 +300,7 @@ export interface FileRoutesByTo {
   '/pro-hub/ai-advisor': typeof ProHubAiAdvisorRoute
   '/pro-hub/ai-design-tools': typeof ProHubAiDesignToolsRoute
   '/pro-hub/ai-hub': typeof ProHubAiHubRoute
+  '/pro-hub/color-matcher': typeof ProHubColorMatcherRoute
   '/pro-hub/credit': typeof ProHubCreditRoute
   '/pro-hub/projects': typeof ProHubProjectsRouteWithChildren
   '/pro-hub/reorder': typeof ProHubReorderRoute
@@ -312,6 +328,7 @@ export interface FileRoutesById {
   '/pro-hub': typeof ProHubRouteWithChildren
   '/products': typeof ProductsRoute
   '/admin/change-password': typeof AdminChangePasswordRoute
+  '/admin/color-matcher': typeof AdminColorMatcherRoute
   '/admin/login': typeof AdminLoginRoute
   '/dashboard/bundles': typeof DashboardBundlesRoute
   '/dashboard/clients': typeof DashboardClientsRoute
@@ -323,6 +340,7 @@ export interface FileRoutesById {
   '/pro-hub/ai-advisor': typeof ProHubAiAdvisorRoute
   '/pro-hub/ai-design-tools': typeof ProHubAiDesignToolsRoute
   '/pro-hub/ai-hub': typeof ProHubAiHubRoute
+  '/pro-hub/color-matcher': typeof ProHubColorMatcherRoute
   '/pro-hub/credit': typeof ProHubCreditRoute
   '/pro-hub/projects': typeof ProHubProjectsRouteWithChildren
   '/pro-hub/reorder': typeof ProHubReorderRoute
@@ -351,6 +369,7 @@ export interface FileRouteTypes {
     | '/pro-hub'
     | '/products'
     | '/admin/change-password'
+    | '/admin/color-matcher'
     | '/admin/login'
     | '/dashboard/bundles'
     | '/dashboard/clients'
@@ -362,6 +381,7 @@ export interface FileRouteTypes {
     | '/pro-hub/ai-advisor'
     | '/pro-hub/ai-design-tools'
     | '/pro-hub/ai-hub'
+    | '/pro-hub/color-matcher'
     | '/pro-hub/credit'
     | '/pro-hub/projects'
     | '/pro-hub/reorder'
@@ -387,6 +407,7 @@ export interface FileRouteTypes {
     | '/marine'
     | '/products'
     | '/admin/change-password'
+    | '/admin/color-matcher'
     | '/admin/login'
     | '/dashboard/bundles'
     | '/dashboard/clients'
@@ -398,6 +419,7 @@ export interface FileRouteTypes {
     | '/pro-hub/ai-advisor'
     | '/pro-hub/ai-design-tools'
     | '/pro-hub/ai-hub'
+    | '/pro-hub/color-matcher'
     | '/pro-hub/credit'
     | '/pro-hub/projects'
     | '/pro-hub/reorder'
@@ -424,6 +446,7 @@ export interface FileRouteTypes {
     | '/pro-hub'
     | '/products'
     | '/admin/change-password'
+    | '/admin/color-matcher'
     | '/admin/login'
     | '/dashboard/bundles'
     | '/dashboard/clients'
@@ -435,6 +458,7 @@ export interface FileRouteTypes {
     | '/pro-hub/ai-advisor'
     | '/pro-hub/ai-design-tools'
     | '/pro-hub/ai-hub'
+    | '/pro-hub/color-matcher'
     | '/pro-hub/credit'
     | '/pro-hub/projects'
     | '/pro-hub/reorder'
@@ -462,6 +486,7 @@ export interface RootRouteChildren {
   ProHubRoute: typeof ProHubRouteWithChildren
   ProductsRoute: typeof ProductsRoute
   AdminChangePasswordRoute: typeof AdminChangePasswordRoute
+  AdminColorMatcherRoute: typeof AdminColorMatcherRoute
   AdminLoginRoute: typeof AdminLoginRoute
   OrderConfirmationOrderIdRoute: typeof OrderConfirmationOrderIdRoute
 }
@@ -601,6 +626,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProHubCreditRouteImport
       parentRoute: typeof ProHubRoute
     }
+    '/pro-hub/color-matcher': {
+      id: '/pro-hub/color-matcher'
+      path: '/color-matcher'
+      fullPath: '/pro-hub/color-matcher'
+      preLoaderRoute: typeof ProHubColorMatcherRouteImport
+      parentRoute: typeof ProHubRoute
+    }
     '/pro-hub/ai-hub': {
       id: '/pro-hub/ai-hub'
       path: '/ai-hub'
@@ -676,6 +708,13 @@ declare module '@tanstack/react-router' {
       path: '/admin/login'
       fullPath: '/admin/login'
       preLoaderRoute: typeof AdminLoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/color-matcher': {
+      id: '/admin/color-matcher'
+      path: '/admin/color-matcher'
+      fullPath: '/admin/color-matcher'
+      preLoaderRoute: typeof AdminColorMatcherRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin/change-password': {
@@ -780,6 +819,7 @@ interface ProHubRouteChildren {
   ProHubAiAdvisorRoute: typeof ProHubAiAdvisorRoute
   ProHubAiDesignToolsRoute: typeof ProHubAiDesignToolsRoute
   ProHubAiHubRoute: typeof ProHubAiHubRoute
+  ProHubColorMatcherRoute: typeof ProHubColorMatcherRoute
   ProHubCreditRoute: typeof ProHubCreditRoute
   ProHubProjectsRoute: typeof ProHubProjectsRouteWithChildren
   ProHubReorderRoute: typeof ProHubReorderRoute
@@ -791,6 +831,7 @@ const ProHubRouteChildren: ProHubRouteChildren = {
   ProHubAiAdvisorRoute: ProHubAiAdvisorRoute,
   ProHubAiDesignToolsRoute: ProHubAiDesignToolsRoute,
   ProHubAiHubRoute: ProHubAiHubRoute,
+  ProHubColorMatcherRoute: ProHubColorMatcherRoute,
   ProHubCreditRoute: ProHubCreditRoute,
   ProHubProjectsRoute: ProHubProjectsRouteWithChildren,
   ProHubReorderRoute: ProHubReorderRoute,
@@ -817,6 +858,7 @@ const rootRouteChildren: RootRouteChildren = {
   ProHubRoute: ProHubRouteWithChildren,
   ProductsRoute: ProductsRoute,
   AdminChangePasswordRoute: AdminChangePasswordRoute,
+  AdminColorMatcherRoute: AdminColorMatcherRoute,
   AdminLoginRoute: AdminLoginRoute,
   OrderConfirmationOrderIdRoute: OrderConfirmationOrderIdRoute,
 }

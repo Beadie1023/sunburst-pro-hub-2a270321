@@ -1634,8 +1634,8 @@ app.post("/api/colors/import", async (req, res) => {
     const result = await saveColors(sunburstItems, refresh === true);
     const current = await getColors();
     res.json({ 
-      success: true, 
       ...result, 
+      success: true, 
       colorsCount: sunburstItems.length,
       colors: current
     });
@@ -3117,7 +3117,7 @@ app.post("/api/chat", async (req, res) => {
   const liveProducts = await getProducts();
   // Build dynamic listing context for Gemini API
   const productSpecsText = liveProducts.length > 0 
-    ? liveProducts.map(p => `- ${p.category.toUpperCase()}: "${p.name}" (SKU: ${p.sku}, $${p.retail_price} retail rate. Standard Single-Coat coverage is ${p.covers_sqft} sq.ft. per ${p.unit}).`).join("\n")
+    ? liveProducts.map((p: any) => `- ${p.category.toUpperCase()}: "${p.name}" (SKU: ${p.sku}, $${p.retail_price} retail rate. Standard Single-Coat coverage is ${p.covers_sqft} sq.ft. per ${p.unit}).`).join("\n")
     : "- No official Sunburst products currently imported. Urgently prompt user to import their catalog files.";
 
   const promptContext = `
@@ -3153,9 +3153,9 @@ ${productSpecsText}
   const userText = message.toLowerCase();
   let text = "";
   
-  const paintProduct = liveProducts.find(p => p.category === "paint") || liveProducts[0];
-  const stainProduct = liveProducts.find(p => p.category === "stain") || liveProducts[2] || liveProducts[0];
-  const sealantProduct = liveProducts.find(p => p.category === "sealant") || liveProducts[3] || liveProducts[0];
+  const paintProduct = liveProducts.find((p: any) => p.category === "paint") || liveProducts[0];
+  const stainProduct = liveProducts.find((p: any) => p.category === "stain") || liveProducts[2] || liveProducts[0];
+  const sealantProduct = liveProducts.find((p: any) => p.category === "sealant") || liveProducts[3] || liveProducts[0];
 
   if (userText.includes("exterior") || userText.includes("outdoor") || userText.includes("stucco") || userText.includes("garage")) {
     const defaultPaintName = paintProduct ? paintProduct.name : "Sunburst Sunscreener Exterior Protective Matte";
@@ -3628,7 +3628,7 @@ app.post("/api/colors/match-competitor", async (req, res) => {
       hex: resolvedHex,
       rgb: { r: targetR, g: targetG, b: targetB }
     },
-    matches: top5Matches.map(m => ({
+    matches: top5Matches.map((m: any) => ({
       id: m.id,
       name: m.name,
       sku: m.product_sku || "SB-SPEC-MATCH",
@@ -3669,7 +3669,7 @@ app.post("/api/quotes/calculate", async (req, res) => {
   }
 
   const liveProducts = await getProducts();
-  const selectedProduct = liveProducts.find(p => p.id === productId);
+  const selectedProduct = liveProducts.find((p: any) => p.id === productId);
   if (!selectedProduct) {
     return res.status(404).json({ error: "Product not found in Dynamic Sunburst catalog" });
   }
@@ -3795,8 +3795,8 @@ app.post("/api/products/import", async (req, res) => {
     const result = await saveProducts(sunburstItems, refresh === true);
     const current = await getProducts();
     res.json({ 
-      success: true, 
       ...result, 
+      success: true, 
       productsCount: sunburstItems.length,
       products: current
     });
@@ -4065,7 +4065,7 @@ app.post("/api/whatsapp/webhook", async (req, res) => {
           
         if (!matchedErr && matchedCustomers) {
           const cleanFrom = fromPhone.replace(/\D/g, "");
-          const found = matchedCustomers.find(c => {
+          const found = matchedCustomers.find((c: any) => {
             const cleanCustPhone = (c.phone || "").replace(/\D/g, "");
             return cleanCustPhone.endsWith(cleanFrom) || cleanFrom.endsWith(cleanCustPhone);
           });
