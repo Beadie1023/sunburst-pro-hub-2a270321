@@ -1634,8 +1634,8 @@ app.post("/api/colors/import", async (req, res) => {
     const result = await saveColors(sunburstItems, refresh === true);
     const current = await getColors();
     res.json({ 
-      success: true, 
       ...result, 
+      success: true, 
       colorsCount: sunburstItems.length,
       colors: current
     });
@@ -3795,8 +3795,8 @@ app.post("/api/products/import", async (req, res) => {
     const result = await saveProducts(sunburstItems, refresh === true);
     const current = await getProducts();
     res.json({ 
-      success: true, 
       ...result, 
+      success: true, 
       productsCount: sunburstItems.length,
       products: current
     });
