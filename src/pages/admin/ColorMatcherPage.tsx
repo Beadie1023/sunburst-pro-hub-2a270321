@@ -37,7 +37,7 @@ export default function ColorMatcherPage() {
  return;
  }
 
- toast.success(${color.name} added to project.);
+ toast.success(`${color.name} added to project.`);
  };
 
  return (
