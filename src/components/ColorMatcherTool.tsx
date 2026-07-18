@@ -475,3 +475,4 @@ export function ColorMatcherTool({ onAddToProject }: ColorMatcherToolProps) {
     </div>
   );
 }
+
