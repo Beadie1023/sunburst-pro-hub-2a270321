@@ -1,11 +1,33 @@
+/**
+ * Color matching utilities.
+ *
+ * Client-side Delta-E matching against the bundled Sunburst catalog
+ * (data_colors.json) plus lightweight helpers used by the Color Matcher UI.
+ */
+
+import colorsData from "../../data_colors.json";
 import { supabase } from "@/integrations/supabase/client";
 
-export type ColorInputMethod = "hexRgb" | "name" | "photo";
+// ----- Types -----
 
-export interface RGB {
-  r: number;
-  g: number;
-  b: number;
+export interface RGB { r: number; g: number; b: number; }
+
+export interface SunburstColor {
+  id: string;
+  name: string;
+  theme: string;
+  base_color: string;
+  secondary_color?: string;
+  accent_style?: string;
+  neutral_tone?: string;
+  description?: string;
+  is_sunburst_exclusive?: boolean;
+  product_sku: string;
+}
+
+export interface ColorMatch {
+  color: SunburstColor;
+  deltaE: number;
 }
 
 export interface PaintColor {
@@ -22,13 +44,11 @@ export interface MatchResult {
   matchLabel: "Excellent Match" | "Very Good Match" | "Good Match" | "Close Match";
 }
 
-/** Kept for backwards compatibility with earlier callers. */
-export interface SunburstColor {
-  id: string;
-  name: string;
-  base_color: string;
-  product_sku?: string;
-}
+// ----- Local catalog -----
+
+const CATALOG = colorsData as SunburstColor[];
+
+// ----- Hex/RGB helpers -----
 
 export function hexToRgb(hex: string): RGB | null {
   const clean = hex.replace(/^#/, "");
@@ -58,20 +78,56 @@ export function parseHexOrRgbInput(input: string): RGB | null {
   return null;
 }
 
-export async function getRgbFromColorName(_name: string): Promise<RGB> {
-  throw new Error("Color-name lookup is not configured. Use hex/RGB or upload a photo.");
+// ----- Perceptual Delta E (CIE76 on Lab) -----
+
+function srgbToLinear(c: number): number {
+  const v = c / 255;
+  return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
 }
 
-export async function getRgbFromImage(_base64: string, _mime: string): Promise<RGB> {
-  throw new Error("Photo color detection is not configured. Use hex/RGB input.");
+function rgbToLab(rgb: RGB): { L: number; a: number; b: number } {
+  const r = srgbToLinear(rgb.r);
+  const g = srgbToLinear(rgb.g);
+  const b = srgbToLinear(rgb.b);
+  // sRGB → XYZ (D65)
+  let x = (r * 0.4124 + g * 0.3576 + b * 0.1805) / 0.95047;
+  let y = (r * 0.2126 + g * 0.7152 + b * 0.0722) / 1.0;
+  let z = (r * 0.0193 + g * 0.1192 + b * 0.9505) / 1.08883;
+  const f = (t: number) => (t > 0.008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116);
+  const fx = f(x), fy = f(y), fz = f(z);
+  return { L: 116 * fy - 16, a: 500 * (fx - fy), b: 200 * (fy - fz) };
 }
 
-function rgbDistance(a: RGB, b: RGB): number {
-  const dr = a.r - b.r;
-  const dg = a.g - b.g;
-  const db = a.b - b.b;
-  return Math.sqrt(dr * dr + dg * dg + db * db);
+function deltaE(a: RGB, b: RGB): number {
+  const la = rgbToLab(a);
+  const lb = rgbToLab(b);
+  const dL = la.L - lb.L;
+  const dA = la.a - lb.a;
+  const dB = la.b - lb.b;
+  return Math.sqrt(dL * dL + dA * dA + dB * dB);
 }
+
+// ----- Public matching APIs -----
+
+export function findClosestByRgb(r: number, g: number, b: number, limit = 3): ColorMatch[] {
+  const target: RGB = { r, g, b };
+  const scored: ColorMatch[] = [];
+  for (const color of CATALOG) {
+    const rgb = hexToRgb(color.base_color);
+    if (!rgb) continue;
+    scored.push({ color, deltaE: deltaE(target, rgb) });
+  }
+  scored.sort((a, b) => a.deltaE - b.deltaE);
+  return scored.slice(0, limit);
+}
+
+export function findClosestSunburstColors(hex: string, limit = 3): ColorMatch[] {
+  const rgb = hexToRgb(hex.startsWith("#") ? hex : `#${hex}`);
+  if (!rgb) return [];
+  return findClosestByRgb(rgb.r, rgb.g, rgb.b, limit);
+}
+
+// ----- Legacy Supabase palette helpers (kept for existing callers) -----
 
 function labelForDistance(d: number): MatchResult["matchLabel"] {
   if (d < 15) return "Excellent Match";
@@ -85,7 +141,7 @@ export function matchColorToPalette(target: RGB, palette: PaintColor[]): MatchRe
     .map((color) => {
       const rgb = hexToRgb(color.hex);
       if (!rgb) return null;
-      const d = rgbDistance(target, rgb);
+      const d = deltaE(target, rgb);
       return { color, deltaE: d, matchLabel: labelForDistance(d) };
     })
     .filter((v): v is MatchResult => v !== null)

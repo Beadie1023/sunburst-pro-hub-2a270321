@@ -1,7 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
-import { ColorMatcherTool } from "../components/ColorMatcherTool";
-import type { MatchResult } from "../lib/colorMatching";
+import { ColorMatcherTool, type MatchedColor } from "../components/ColorMatcherTool";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -17,24 +16,23 @@ export const Route = createFileRoute("/pro-hub/color-matcher")({
 function ColorMatcherPage() {
   const { projectId } = Route.useSearch();
 
-  const handleAddToProject = async (match: MatchResult) => {
+  const handleAddToProject = async (color: MatchedColor) => {
     if (!projectId) {
       toast.error("Open this matcher from a project to save colors.");
       return;
     }
     const { error } = await supabase.from("project_colors").insert({
       project_id: projectId,
-      paint_color_id: match.color.id,
-      matcher_color_id: match.color.id,
-      matcher_color_name: match.color.name,
-      matcher_color_hex: match.color.hex,
-      matcher_sku: match.color.code,
-    });
+      matcher_color_id: color.id,
+      matcher_color_name: color.name,
+      matcher_color_hex: color.hex,
+      matcher_sku: color.product_sku,
+    } as any);
     if (error) {
       toast.error("Could not save color: " + error.message);
       return;
     }
-    toast.success(`${match.color.name} added to project.`);
+    toast.success(`${color.name} added to project.`);
   };
 
   return (
