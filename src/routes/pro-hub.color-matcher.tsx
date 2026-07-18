@@ -23,12 +23,11 @@ function ColorMatcherPage() {
     }
     const { error } = await supabase.from("project_colors").insert({
       project_id: projectId,
-      paint_color_id: null,
       matcher_color_id: color.id,
       matcher_color_name: color.name,
       matcher_color_hex: color.hex,
       matcher_sku: color.product_sku,
-    });
+    } as any);
     if (error) {
       toast.error("Could not save color: " + error.message);
       return;
