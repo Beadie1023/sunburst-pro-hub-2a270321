@@ -36,6 +36,8 @@ function Calendar({
         ...formatters,
       }}
       classNames={{
+        // @ts-expect-error - key varies by react-day-picker version
+        table: "w-full border-collapse",
         root: cn("w-fit", defaultClassNames.root),
         months: cn("relative flex flex-col gap-4 md:flex-row", defaultClassNames.months),
         month: cn("flex w-full flex-col gap-4", defaultClassNames.month),
