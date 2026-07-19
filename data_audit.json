@@ -1,5 +1,29 @@
 [
   {
+    "id": "audit_1784471528860_oly2w",
+    "timestamp": "2026-07-19T14:32:08.860Z",
+    "action": "CONNECTION_FAILURE",
+    "type": "SYSTEM",
+    "countOrId": "HEARTBEAT_FAIL_23",
+    "details": "Database connection heartbeat was degraded: Invalid API key"
+  },
+  {
+    "id": "audit_1784471498879_py364",
+    "timestamp": "2026-07-19T14:31:38.879Z",
+    "action": "CONNECTION_FAILURE",
+    "type": "SYSTEM",
+    "countOrId": "HEARTBEAT_FAIL_22",
+    "details": "Database connection heartbeat was degraded: Invalid API key"
+  },
+  {
+    "id": "audit_1784471468852_gghc8",
+    "timestamp": "2026-07-19T14:31:08.852Z",
+    "action": "CONNECTION_FAILURE",
+    "type": "SYSTEM",
+    "countOrId": "HEARTBEAT_FAIL_21",
+    "details": "Database connection heartbeat was degraded: Invalid API key"
+  },
+  {
     "id": "audit_1784471438853_f3ewd",
     "timestamp": "2026-07-19T14:30:38.853Z",
     "action": "CONNECTION_FAILURE",
