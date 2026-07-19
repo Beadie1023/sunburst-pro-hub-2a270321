@@ -1,5 +1,13 @@
 [
   {
+    "id": "audit_1784471108854_ls6rv",
+    "timestamp": "2026-07-19T14:25:08.854Z",
+    "action": "CONNECTION_FAILURE",
+    "type": "SYSTEM",
+    "countOrId": "HEARTBEAT_FAIL_9",
+    "details": "Database connection heartbeat was degraded: Invalid API key"
+  },
+  {
     "id": "audit_1784471078857_3tmrk",
     "timestamp": "2026-07-19T14:24:38.857Z",
     "action": "CONNECTION_FAILURE",
