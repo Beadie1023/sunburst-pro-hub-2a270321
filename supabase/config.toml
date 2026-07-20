@@ -1,1 +1,4 @@
 project_id = "iobdhtaofnyznjlwvati"
+
+[functions.match-competitor-color]
+verify_jwt = false
