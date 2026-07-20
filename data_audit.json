@@ -1,5 +1,85 @@
 [
   {
+    "id": "audit_1784587197218_o237b",
+    "timestamp": "2026-07-20T22:39:57.218Z",
+    "action": "CONNECTION_FAILURE",
+    "type": "SYSTEM",
+    "countOrId": "HEARTBEAT_FAIL_10",
+    "details": "Database connection heartbeat was degraded: Invalid API key"
+  },
+  {
+    "id": "audit_1784587167215_ymj8i",
+    "timestamp": "2026-07-20T22:39:27.215Z",
+    "action": "CONNECTION_FAILURE",
+    "type": "SYSTEM",
+    "countOrId": "HEARTBEAT_FAIL_9",
+    "details": "Database connection heartbeat was degraded: Invalid API key"
+  },
+  {
+    "id": "audit_1784587137238_r4g5v",
+    "timestamp": "2026-07-20T22:38:57.238Z",
+    "action": "CONNECTION_FAILURE",
+    "type": "SYSTEM",
+    "countOrId": "HEARTBEAT_FAIL_8",
+    "details": "Database connection heartbeat was degraded: Invalid API key"
+  },
+  {
+    "id": "audit_1784587107209_56ui6",
+    "timestamp": "2026-07-20T22:38:27.209Z",
+    "action": "CONNECTION_FAILURE",
+    "type": "SYSTEM",
+    "countOrId": "HEARTBEAT_FAIL_7",
+    "details": "Database connection heartbeat was degraded: Invalid API key"
+  },
+  {
+    "id": "audit_1784587077206_61io0",
+    "timestamp": "2026-07-20T22:37:57.206Z",
+    "action": "CONNECTION_FAILURE",
+    "type": "SYSTEM",
+    "countOrId": "HEARTBEAT_FAIL_6",
+    "details": "Database connection heartbeat was degraded: Invalid API key"
+  },
+  {
+    "id": "audit_1784587047232_b99mu",
+    "timestamp": "2026-07-20T22:37:27.232Z",
+    "action": "CONNECTION_FAILURE",
+    "type": "SYSTEM",
+    "countOrId": "HEARTBEAT_FAIL_5",
+    "details": "Database connection heartbeat was degraded: Invalid API key"
+  },
+  {
+    "id": "audit_1784587017209_8gtmr",
+    "timestamp": "2026-07-20T22:36:57.208Z",
+    "action": "CONNECTION_FAILURE",
+    "type": "SYSTEM",
+    "countOrId": "HEARTBEAT_FAIL_4",
+    "details": "Database connection heartbeat was degraded: Invalid API key"
+  },
+  {
+    "id": "audit_1784586987199_5mu3t",
+    "timestamp": "2026-07-20T22:36:27.199Z",
+    "action": "CONNECTION_FAILURE",
+    "type": "SYSTEM",
+    "countOrId": "HEARTBEAT_FAIL_3",
+    "details": "Database connection heartbeat was degraded: Invalid API key"
+  },
+  {
+    "id": "audit_1784586957213_x5l0a",
+    "timestamp": "2026-07-20T22:35:57.213Z",
+    "action": "CONNECTION_FAILURE",
+    "type": "SYSTEM",
+    "countOrId": "HEARTBEAT_FAIL_2",
+    "details": "Database connection heartbeat was degraded: Invalid API key"
+  },
+  {
+    "id": "audit_1784586927275_qp1o1",
+    "timestamp": "2026-07-20T22:35:27.275Z",
+    "action": "CONNECTION_FAILURE",
+    "type": "SYSTEM",
+    "countOrId": "HEARTBEAT_FAIL_1",
+    "details": "Database connection heartbeat was degraded: Invalid API key"
+  },
+  {
     "id": "audit_1784561263887_3grba",
     "timestamp": "2026-07-20T15:27:43.887Z",
     "action": "CONNECTION_FAILURE",
