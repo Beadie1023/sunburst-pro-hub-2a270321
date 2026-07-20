@@ -37,6 +37,7 @@ import { Route as DashboardProductsRouteImport } from './routes/dashboard.produc
 import { Route as DashboardOrdersRouteImport } from './routes/dashboard.orders'
 import { Route as DashboardFollowupsRouteImport } from './routes/dashboard.followups'
 import { Route as DashboardColorsRouteImport } from './routes/dashboard.colors'
+import { Route as DashboardColorMatcherRouteImport } from './routes/dashboard.color-matcher'
 import { Route as DashboardClientsRouteImport } from './routes/dashboard.clients'
 import { Route as DashboardBundlesRouteImport } from './routes/dashboard.bundles'
 import { Route as AdminLoginRouteImport } from './routes/admin.login'
@@ -189,6 +190,11 @@ const DashboardColorsRoute = DashboardColorsRouteImport.update({
   path: '/colors',
   getParentRoute: () => DashboardRoute,
 } as any)
+const DashboardColorMatcherRoute = DashboardColorMatcherRouteImport.update({
+  id: '/color-matcher',
+  path: '/color-matcher',
+  getParentRoute: () => DashboardRoute,
+} as any)
 const DashboardClientsRoute = DashboardClientsRouteImport.update({
   id: '/clients',
   path: '/clients',
@@ -260,6 +266,7 @@ export interface FileRoutesByFullPath {
   '/admin/login': typeof AdminLoginRoute
   '/dashboard/bundles': typeof DashboardBundlesRoute
   '/dashboard/clients': typeof DashboardClientsRoute
+  '/dashboard/color-matcher': typeof DashboardColorMatcherRoute
   '/dashboard/colors': typeof DashboardColorsRouteWithChildren
   '/dashboard/followups': typeof DashboardFollowupsRoute
   '/dashboard/orders': typeof DashboardOrdersRouteWithChildren
@@ -299,6 +306,7 @@ export interface FileRoutesByTo {
   '/admin/login': typeof AdminLoginRoute
   '/dashboard/bundles': typeof DashboardBundlesRoute
   '/dashboard/clients': typeof DashboardClientsRoute
+  '/dashboard/color-matcher': typeof DashboardColorMatcherRoute
   '/dashboard/colors': typeof DashboardColorsRouteWithChildren
   '/dashboard/followups': typeof DashboardFollowupsRoute
   '/dashboard/orders': typeof DashboardOrdersRouteWithChildren
@@ -340,6 +348,7 @@ export interface FileRoutesById {
   '/admin/login': typeof AdminLoginRoute
   '/dashboard/bundles': typeof DashboardBundlesRoute
   '/dashboard/clients': typeof DashboardClientsRoute
+  '/dashboard/color-matcher': typeof DashboardColorMatcherRoute
   '/dashboard/colors': typeof DashboardColorsRouteWithChildren
   '/dashboard/followups': typeof DashboardFollowupsRoute
   '/dashboard/orders': typeof DashboardOrdersRouteWithChildren
@@ -382,6 +391,7 @@ export interface FileRouteTypes {
     | '/admin/login'
     | '/dashboard/bundles'
     | '/dashboard/clients'
+    | '/dashboard/color-matcher'
     | '/dashboard/colors'
     | '/dashboard/followups'
     | '/dashboard/orders'
@@ -421,6 +431,7 @@ export interface FileRouteTypes {
     | '/admin/login'
     | '/dashboard/bundles'
     | '/dashboard/clients'
+    | '/dashboard/color-matcher'
     | '/dashboard/colors'
     | '/dashboard/followups'
     | '/dashboard/orders'
@@ -461,6 +472,7 @@ export interface FileRouteTypes {
     | '/admin/login'
     | '/dashboard/bundles'
     | '/dashboard/clients'
+    | '/dashboard/color-matcher'
     | '/dashboard/colors'
     | '/dashboard/followups'
     | '/dashboard/orders'
@@ -701,6 +713,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardColorsRouteImport
       parentRoute: typeof DashboardRoute
     }
+    '/dashboard/color-matcher': {
+      id: '/dashboard/color-matcher'
+      path: '/color-matcher'
+      fullPath: '/dashboard/color-matcher'
+      preLoaderRoute: typeof DashboardColorMatcherRouteImport
+      parentRoute: typeof DashboardRoute
+    }
     '/dashboard/clients': {
       id: '/dashboard/clients'
       path: '/clients'
@@ -814,6 +833,7 @@ const DashboardProductsRouteWithChildren =
 interface DashboardRouteChildren {
   DashboardBundlesRoute: typeof DashboardBundlesRoute
   DashboardClientsRoute: typeof DashboardClientsRoute
+  DashboardColorMatcherRoute: typeof DashboardColorMatcherRoute
   DashboardColorsRoute: typeof DashboardColorsRouteWithChildren
   DashboardFollowupsRoute: typeof DashboardFollowupsRoute
   DashboardOrdersRoute: typeof DashboardOrdersRouteWithChildren
@@ -823,6 +843,7 @@ interface DashboardRouteChildren {
 const DashboardRouteChildren: DashboardRouteChildren = {
   DashboardBundlesRoute: DashboardBundlesRoute,
   DashboardClientsRoute: DashboardClientsRoute,
+  DashboardColorMatcherRoute: DashboardColorMatcherRoute,
   DashboardColorsRoute: DashboardColorsRouteWithChildren,
   DashboardFollowupsRoute: DashboardFollowupsRoute,
   DashboardOrdersRoute: DashboardOrdersRouteWithChildren,
