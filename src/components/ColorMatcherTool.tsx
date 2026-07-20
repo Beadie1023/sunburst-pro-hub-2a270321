@@ -34,6 +34,7 @@ import {
   findClosestByRgb,
   findClosestSunburstColors,
 } from "../lib/colorMatching";
+import { supabase } from "@/integrations/supabase/client";
 import "./ColorMatcherTool.css";
 
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
@@ -136,30 +137,31 @@ function fromLocalMatch(m: ColorMatch): MatchedColor {
  * the response can't be interpreted as a valid match list.
  */
 async function fetchServerMatches(inputColor: string): Promise<{ resolvedHex: string; matches: MatchedColor[] }> {
-  const res = await fetch("/api/colors/match-competitor", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ input_color: inputColor }),
+  const { data, error } = await supabase.functions.invoke("match-competitor-color", {
+    body: { input_color: inputColor },
   });
 
-  if (res.status === 429) throw new Error("AI rate limit reached — please try again in a moment.");
-  if (!res.ok) throw new Error("Color name not recognized. Try entering a hex code instead.");
-
-  const json = await res.json();
-  if (!json?.success || !Array.isArray(json.matches) || json.matches.length === 0) {
+  if (error) {
+    const msg = (error as any)?.message || "";
+    if (msg.includes("429") || msg.toLowerCase().includes("rate")) {
+      throw new Error("AI rate limit reached — please try again in a moment.");
+    }
     throw new Error("Color name not recognized. Try entering a hex code instead.");
   }
 
-  const resolvedHex = normalizeHex(json.resolved_competitor?.hex) ?? "#808080";
+  if (!data?.success || !Array.isArray(data.matches) || data.matches.length === 0) {
+    throw new Error("Color name not recognized. Try entering a hex code instead.");
+  }
 
-  const matches: MatchedColor[] = json.matches.slice(0, 3).map((m: any) => ({
+  const resolvedHex = normalizeHex(data.resolved_competitor?.hex) ?? "#808080";
+
+  const matches: MatchedColor[] = data.matches.slice(0, 3).map((m: any) => ({
     id: m.id,
     name: m.name,
     hex: normalizeHex(m.hex) ?? "#FFFFFF",
     product_sku: m.sku,
     theme: m.theme ?? "",
     matchScore: typeof m.matchScore === "number" ? m.matchScore : 0,
-    // is_sunburst_exclusive is not part of this endpoint's response shape.
   }));
 
   return { resolvedHex, matches };
