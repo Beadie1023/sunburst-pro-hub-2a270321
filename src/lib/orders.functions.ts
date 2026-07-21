@@ -33,11 +33,10 @@ export async function placeOrder(input: PlaceOrderInput) {
 }
 
 export async function getOrder(input: { data: { orderId: string } }) {
-  const { data, error } = await supabase
-    .from("orders")
-    .select("*")
-    .eq("id", input.data.orderId)
-    .maybeSingle();
-  if (error) throw new Error(error.message);
+  const { data, error } = await supabase.functions.invoke("get-order", {
+    body: { orderId: input.data.orderId },
+  });
+  if (error) throw new Error(error.message || "Failed to load order");
+  if (data?.error) throw new Error(data.error);
   return data;
 }
