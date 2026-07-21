@@ -1,5 +1,5 @@
-// Browser-safe client wrappers. Actual persistence handled by Express endpoints in server.ts.
-// These fetch shims allow the SPA to compile and call server endpoints when available.
+// Client wrappers around Lovable Cloud edge functions.
+import { supabase } from "@/integrations/supabase/client";
 
 interface PlaceOrderInput {
   data: {
@@ -17,24 +17,27 @@ interface PlaceOrderInput {
 }
 
 export async function placeOrder(input: PlaceOrderInput) {
-  const res = await fetch("/api/orders/place", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input.data),
+  const { data, error } = await supabase.functions.invoke("place-order", {
+    body: input.data,
   });
-  if (!res.ok) throw new Error(`Order failed: ${res.status}`);
-  return res.json() as Promise<{
+  if (error) throw new Error(error.message || "Failed to place order");
+  if (data?.error) throw new Error(data.error);
+  return data as {
     order_id: string;
     order_number: string;
     subtotal: number;
     vat_amount: number;
     total: number;
     isContractor: boolean;
-  }>;
+  };
 }
 
 export async function getOrder(input: { data: { orderId: string } }) {
-  const res = await fetch(`/api/orders/${encodeURIComponent(input.data.orderId)}`);
-  if (!res.ok) throw new Error(`Failed to load order: ${res.status}`);
-  return res.json();
+  const { data, error } = await supabase
+    .from("orders")
+    .select("*")
+    .eq("id", input.data.orderId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return data;
 }
