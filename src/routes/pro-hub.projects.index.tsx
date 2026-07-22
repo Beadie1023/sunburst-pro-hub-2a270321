@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { FolderKanban, Loader2, Plus } from "lucide-react";
 
-export const Route = createFileRoute("/pro-hub/projects")({
+export const Route = createFileRoute("/pro-hub/projects/")({
   component: ProjectsPage,
 });
 
