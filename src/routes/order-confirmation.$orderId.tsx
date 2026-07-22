@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useParams } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { getOrder } from "@/lib/orders.functions";
+import { supabase } from "@/integrations/supabase/client";
 import { Header } from "@/components/Header";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -32,13 +32,24 @@ function ConfirmationPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    getOrder({ data: { orderId } })
-      .then((data) => setOrder(data as unknown as Order))
-      .catch((err) => {
-        console.error("Failed to load order:", err);
-        setError(err?.message ?? "Could not load order.");
-      })
-      .finally(() => setLoading(false));
+    (async () => {
+      const { data, error: qErr } = await supabase
+        .from("orders")
+        .select("*")
+        .eq("id", orderId)
+        .maybeSingle();
+      if (qErr) {
+        console.error("Failed to load order:", qErr);
+        setError(qErr.message);
+      } else if (!data) {
+        setError(null);
+        setOrder(null);
+      } else {
+        const lines = (data as any).items?.lines ?? (Array.isArray((data as any).items) ? (data as any).items : []);
+        setOrder({ ...(data as any), items: lines } as Order);
+      }
+      setLoading(false);
+    })();
   }, [orderId]);
 
   if (loading) {
