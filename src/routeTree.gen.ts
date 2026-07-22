@@ -26,7 +26,6 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as ProHubIndexRouteImport } from './routes/pro-hub.index'
 import { Route as ProHubSavedRouteImport } from './routes/pro-hub.saved'
 import { Route as ProHubReorderRouteImport } from './routes/pro-hub.reorder'
-import { Route as ProHubProjectsRouteImport } from './routes/pro-hub.projects'
 import { Route as ProHubCreditRouteImport } from './routes/pro-hub.credit'
 import { Route as ProHubColorMatcherRouteImport } from './routes/pro-hub.color-matcher'
 import { Route as ProHubAiHubRouteImport } from './routes/pro-hub.ai-hub'
@@ -43,6 +42,7 @@ import { Route as DashboardBundlesRouteImport } from './routes/dashboard.bundles
 import { Route as AdminLoginRouteImport } from './routes/admin.login'
 import { Route as AdminColorMatcherRouteImport } from './routes/admin.color-matcher'
 import { Route as AdminChangePasswordRouteImport } from './routes/admin.change-password'
+import { Route as ProHubProjectsIndexRouteImport } from './routes/pro-hub.projects.index'
 import { Route as ProHubProjectsProjectIdRouteImport } from './routes/pro-hub.projects.$projectId'
 import { Route as DashboardProductsImportRouteImport } from './routes/dashboard.products.import'
 import { Route as DashboardOrdersNewRouteImport } from './routes/dashboard.orders.new'
@@ -134,11 +134,6 @@ const ProHubReorderRoute = ProHubReorderRouteImport.update({
   path: '/reorder',
   getParentRoute: () => ProHubRoute,
 } as any)
-const ProHubProjectsRoute = ProHubProjectsRouteImport.update({
-  id: '/projects',
-  path: '/projects',
-  getParentRoute: () => ProHubRoute,
-} as any)
 const ProHubCreditRoute = ProHubCreditRouteImport.update({
   id: '/credit',
   path: '/credit',
@@ -220,10 +215,15 @@ const AdminChangePasswordRoute = AdminChangePasswordRouteImport.update({
   path: '/admin/change-password',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ProHubProjectsIndexRoute = ProHubProjectsIndexRouteImport.update({
+  id: '/projects/',
+  path: '/projects/',
+  getParentRoute: () => ProHubRoute,
+} as any)
 const ProHubProjectsProjectIdRoute = ProHubProjectsProjectIdRouteImport.update({
-  id: '/$projectId',
-  path: '/$projectId',
-  getParentRoute: () => ProHubProjectsRoute,
+  id: '/projects/$projectId',
+  path: '/projects/$projectId',
+  getParentRoute: () => ProHubRoute,
 } as any)
 const DashboardProductsImportRoute = DashboardProductsImportRouteImport.update({
   id: '/import',
@@ -277,7 +277,6 @@ export interface FileRoutesByFullPath {
   '/pro-hub/ai-hub': typeof ProHubAiHubRoute
   '/pro-hub/color-matcher': typeof ProHubColorMatcherRoute
   '/pro-hub/credit': typeof ProHubCreditRoute
-  '/pro-hub/projects': typeof ProHubProjectsRouteWithChildren
   '/pro-hub/reorder': typeof ProHubReorderRoute
   '/pro-hub/saved': typeof ProHubSavedRoute
   '/pro-hub/': typeof ProHubIndexRoute
@@ -286,6 +285,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/orders/new': typeof DashboardOrdersNewRoute
   '/dashboard/products/import': typeof DashboardProductsImportRoute
   '/pro-hub/projects/$projectId': typeof ProHubProjectsProjectIdRoute
+  '/pro-hub/projects/': typeof ProHubProjectsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -317,7 +317,6 @@ export interface FileRoutesByTo {
   '/pro-hub/ai-hub': typeof ProHubAiHubRoute
   '/pro-hub/color-matcher': typeof ProHubColorMatcherRoute
   '/pro-hub/credit': typeof ProHubCreditRoute
-  '/pro-hub/projects': typeof ProHubProjectsRouteWithChildren
   '/pro-hub/reorder': typeof ProHubReorderRoute
   '/pro-hub/saved': typeof ProHubSavedRoute
   '/pro-hub': typeof ProHubIndexRoute
@@ -326,6 +325,7 @@ export interface FileRoutesByTo {
   '/dashboard/orders/new': typeof DashboardOrdersNewRoute
   '/dashboard/products/import': typeof DashboardProductsImportRoute
   '/pro-hub/projects/$projectId': typeof ProHubProjectsProjectIdRoute
+  '/pro-hub/projects': typeof ProHubProjectsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -359,7 +359,6 @@ export interface FileRoutesById {
   '/pro-hub/ai-hub': typeof ProHubAiHubRoute
   '/pro-hub/color-matcher': typeof ProHubColorMatcherRoute
   '/pro-hub/credit': typeof ProHubCreditRoute
-  '/pro-hub/projects': typeof ProHubProjectsRouteWithChildren
   '/pro-hub/reorder': typeof ProHubReorderRoute
   '/pro-hub/saved': typeof ProHubSavedRoute
   '/pro-hub/': typeof ProHubIndexRoute
@@ -368,6 +367,7 @@ export interface FileRoutesById {
   '/dashboard/orders/new': typeof DashboardOrdersNewRoute
   '/dashboard/products/import': typeof DashboardProductsImportRoute
   '/pro-hub/projects/$projectId': typeof ProHubProjectsProjectIdRoute
+  '/pro-hub/projects/': typeof ProHubProjectsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -402,7 +402,6 @@ export interface FileRouteTypes {
     | '/pro-hub/ai-hub'
     | '/pro-hub/color-matcher'
     | '/pro-hub/credit'
-    | '/pro-hub/projects'
     | '/pro-hub/reorder'
     | '/pro-hub/saved'
     | '/pro-hub/'
@@ -411,6 +410,7 @@ export interface FileRouteTypes {
     | '/dashboard/orders/new'
     | '/dashboard/products/import'
     | '/pro-hub/projects/$projectId'
+    | '/pro-hub/projects/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -442,7 +442,6 @@ export interface FileRouteTypes {
     | '/pro-hub/ai-hub'
     | '/pro-hub/color-matcher'
     | '/pro-hub/credit'
-    | '/pro-hub/projects'
     | '/pro-hub/reorder'
     | '/pro-hub/saved'
     | '/pro-hub'
@@ -451,6 +450,7 @@ export interface FileRouteTypes {
     | '/dashboard/orders/new'
     | '/dashboard/products/import'
     | '/pro-hub/projects/$projectId'
+    | '/pro-hub/projects'
   id:
     | '__root__'
     | '/'
@@ -483,7 +483,6 @@ export interface FileRouteTypes {
     | '/pro-hub/ai-hub'
     | '/pro-hub/color-matcher'
     | '/pro-hub/credit'
-    | '/pro-hub/projects'
     | '/pro-hub/reorder'
     | '/pro-hub/saved'
     | '/pro-hub/'
@@ -492,6 +491,7 @@ export interface FileRouteTypes {
     | '/dashboard/orders/new'
     | '/dashboard/products/import'
     | '/pro-hub/projects/$projectId'
+    | '/pro-hub/projects/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -636,13 +636,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProHubReorderRouteImport
       parentRoute: typeof ProHubRoute
     }
-    '/pro-hub/projects': {
-      id: '/pro-hub/projects'
-      path: '/projects'
-      fullPath: '/pro-hub/projects'
-      preLoaderRoute: typeof ProHubProjectsRouteImport
-      parentRoute: typeof ProHubRoute
-    }
     '/pro-hub/credit': {
       id: '/pro-hub/credit'
       path: '/credit'
@@ -755,12 +748,19 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminChangePasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/pro-hub/projects/': {
+      id: '/pro-hub/projects/'
+      path: '/projects'
+      fullPath: '/pro-hub/projects/'
+      preLoaderRoute: typeof ProHubProjectsIndexRouteImport
+      parentRoute: typeof ProHubRoute
+    }
     '/pro-hub/projects/$projectId': {
       id: '/pro-hub/projects/$projectId'
-      path: '/$projectId'
+      path: '/projects/$projectId'
       fullPath: '/pro-hub/projects/$projectId'
       preLoaderRoute: typeof ProHubProjectsProjectIdRouteImport
-      parentRoute: typeof ProHubProjectsRoute
+      parentRoute: typeof ProHubRoute
     }
     '/dashboard/products/import': {
       id: '/dashboard/products/import'
@@ -854,28 +854,17 @@ const DashboardRouteWithChildren = DashboardRoute._addFileChildren(
   DashboardRouteChildren,
 )
 
-interface ProHubProjectsRouteChildren {
-  ProHubProjectsProjectIdRoute: typeof ProHubProjectsProjectIdRoute
-}
-
-const ProHubProjectsRouteChildren: ProHubProjectsRouteChildren = {
-  ProHubProjectsProjectIdRoute: ProHubProjectsProjectIdRoute,
-}
-
-const ProHubProjectsRouteWithChildren = ProHubProjectsRoute._addFileChildren(
-  ProHubProjectsRouteChildren,
-)
-
 interface ProHubRouteChildren {
   ProHubAiAdvisorRoute: typeof ProHubAiAdvisorRoute
   ProHubAiDesignToolsRoute: typeof ProHubAiDesignToolsRoute
   ProHubAiHubRoute: typeof ProHubAiHubRoute
   ProHubColorMatcherRoute: typeof ProHubColorMatcherRoute
   ProHubCreditRoute: typeof ProHubCreditRoute
-  ProHubProjectsRoute: typeof ProHubProjectsRouteWithChildren
   ProHubReorderRoute: typeof ProHubReorderRoute
   ProHubSavedRoute: typeof ProHubSavedRoute
   ProHubIndexRoute: typeof ProHubIndexRoute
+  ProHubProjectsProjectIdRoute: typeof ProHubProjectsProjectIdRoute
+  ProHubProjectsIndexRoute: typeof ProHubProjectsIndexRoute
 }
 
 const ProHubRouteChildren: ProHubRouteChildren = {
@@ -884,10 +873,11 @@ const ProHubRouteChildren: ProHubRouteChildren = {
   ProHubAiHubRoute: ProHubAiHubRoute,
   ProHubColorMatcherRoute: ProHubColorMatcherRoute,
   ProHubCreditRoute: ProHubCreditRoute,
-  ProHubProjectsRoute: ProHubProjectsRouteWithChildren,
   ProHubReorderRoute: ProHubReorderRoute,
   ProHubSavedRoute: ProHubSavedRoute,
   ProHubIndexRoute: ProHubIndexRoute,
+  ProHubProjectsProjectIdRoute: ProHubProjectsProjectIdRoute,
+  ProHubProjectsIndexRoute: ProHubProjectsIndexRoute,
 }
 
 const ProHubRouteWithChildren =
