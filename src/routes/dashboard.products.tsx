@@ -5,19 +5,9 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
- Table, TableBody, TableCell, TableHead,
- TableHeader, TableRow,
-} from "@/components/ui/table";
-import {
- AlertDialog, AlertDialogAction, AlertDialogCancel,
- AlertDialogContent, AlertDialogDescription,
- AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import {
- Loader2, AlertTriangle, PackageX,
- PackageCheck, Search, Trash2,
-} from "lucide-react";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Loader2, AlertTriangle, PackageX, PackageCheck, Search, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/dashboard/products")({
@@ -35,7 +25,7 @@ interface Product {
  price: number | null;
 }
 
-function AdminProductsPage() {
+function AdminProductsPage {
  const [products, setProducts] = useState<Product>();
  const [loading, setLoading] = useState(true);
  const [q, setQ] = useState("");
@@ -62,27 +52,17 @@ function AdminProductsPage() {
  };
 
  const updateStock = async (id: string, stock_quantity: number) => {
- const status =
- stock_quantity <= 0 ? "Out of Stock" :
- stock_quantity < 10 ? "Low Stock" : "In Stock";
- const { error } = await supabase
- .from("products")
- .update({ stock_quantity, status })
- .eq("id", id);
+ const status = stock_quantity <= 0 ? "Out of Stock" : stock_quantity < 10 ? "Low Stock" : "In Stock";
+ const { error } = await supabase.from("products").update({ stock_quantity, status }).eq("id", id);
  if (error) return toast.error(error.message);
  toast.success("Stock updated");
- setProducts((prev) =>
- prev.map((p) => (p.id === id ? { ...p, stock_quantity, status } : p))
- );
+ setProducts((prev) => prev.map((p) => (p.id === id ? { ...p, stock_quantity, status } : p)));
  };
 
  const confirmDelete = async => {
  if (!deleteTarget) return;
  setDeleting(true);
- const { error } = await supabase
- .from("products")
- .delete
- .eq("id", deleteTarget.id);
+ const { error } = await supabase.from("products").delete.eq("id", deleteTarget.id);
  setDeleting(false);
  if (error) {
  toast.error(error.message);
@@ -94,10 +74,7 @@ function AdminProductsPage() {
  };
 
  const filtered = products.filter(
- (p) =>
- q === "" ||
- p.name.toLowerCase.includes(q.toLowerCase) ||
- p.sku.includes(q),
+ (p) => q === "" || p.name.toLowerCase.includes(q.toLowerCase) || p.sku.includes(q),
  );
 
  const stats = useMemo( => ({
@@ -189,18 +166,12 @@ function AdminProductsPage() {
  className="h-8 w-20"
  onBlur={(e) => {
  const v = Number(e.target.value);
- if (!Number.isNaN(v) && v !== p.stock_quantity)
- updateStock(p.id, v);
+ if (!Number.isNaN(v) && v !== p.stock_quantity) updateStock(p.id, v);
  }}
  />
  </TableCell>
  <TableCell>
- <Badge
- variant={
- p.status === "Out of Stock" ? "destructive" :
- p.status === "Low Stock" ? "secondary" : "default"
- }
- >
+ <Badge variant={p.status === "Out of Stock" ? "destructive" : p.status === "Low Stock" ? "secondary" : "default"}>
  {p.status}
  </Badge>
  </TableCell>
@@ -243,8 +214,7 @@ function AdminProductsPage() {
  <AlertDialogHeader>
  <AlertDialogTitle>Delete product?</AlertDialogTitle>
  <AlertDialogDescription>
- This permanently deletes <strong>{deleteTarget?.name}</strong> (SKU: {deleteTarget?.sku}).
- This action cannot be undone.
+ This permanently deletes <strong>{deleteTarget?.name}</strong> (SKU: {deleteTarget?.sku}). This action cannot be undone.
  </AlertDialogDescription>
  </AlertDialogHeader>
  <AlertDialogFooter>
