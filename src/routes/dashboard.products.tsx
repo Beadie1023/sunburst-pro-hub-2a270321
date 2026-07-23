@@ -35,7 +35,7 @@ interface Product {
  price: number | null;
 }
 
-function AdminProductsPage {
+function AdminProductsPage () {
  const [products, setProducts] = useState<Product>();
  const [loading, setLoading] = useState(true);
  const [q, setQ] = useState("");
