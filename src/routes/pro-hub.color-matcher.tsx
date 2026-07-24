@@ -21,13 +21,16 @@ function ColorMatcherPage() {
       toast.error("Open this matcher from a project to save colors.");
       return;
     }
+    
+    // Fixed: Changed "matcher_color_id" to "paint_color_id" to satisfy database constraints
     const { error } = await supabase.from("project_colors").insert({
       project_id: projectId,
-      matcher_color_id: color.id,
+      paint_color_id: color.id, 
       matcher_color_name: color.name,
       matcher_color_hex: color.hex,
       matcher_sku: color.product_sku,
     } as any);
+
     if (error) {
       toast.error("Could not save color: " + error.message);
       return;
