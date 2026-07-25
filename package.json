@@ -3,9 +3,9 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
- "scripts": {
-    "dev": "bun tsr watch & tsx server.ts",
-    "build": "bun tsr generate && vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
+  "scripts": {
+    "dev": "npx tsr watch & tsx server.ts",
+    "build": "npx tsr generate && vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
     "build:dev": "vite build --mode development",
     "start": "node dist/server.cjs",
     "clean": "rm -rf dist server.js",
