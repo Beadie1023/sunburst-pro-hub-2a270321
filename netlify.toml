@@ -1,6 +1,6 @@
-toml[build]
+[build]
   command = "bun run build"
-  publish = "dist"
+  publish = "dist/client"
 
 [[redirects]]
   from = "/*"
