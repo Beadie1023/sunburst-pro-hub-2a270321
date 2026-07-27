@@ -14,7 +14,7 @@ export const Route = createFileRoute("/dashboard/orders/new")({
  component: NewOrderPage,
 });
 
-function NewOrderPage {
+function NewOrderPage() {
  const navigate = useNavigate;
  const [clients, setClients] = useState<{ id: string; company_name: string }>();
  const [saving, setSaving] = useState(false);
