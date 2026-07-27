@@ -46,7 +46,7 @@ interface HistoryEntry {
 
 const STATUSES = ["pending", "confirmed", "preparing", "out_for_delivery", "completed", "cancelled"];
 
-function OrderDetail {
+function OrderDetail() {
  const { orderId } = Route.useParams;
  const navigate = useNavigate;
  const [order, setOrder] = useState<Order | null>(null);
