@@ -21,7 +21,7 @@ function NewOrderPage() {
  const [paymentMethod, setPaymentMethod] = useState("Bank Transfer");
  const [deliveryMethod, setDeliveryMethod] = useState("Nassau Job-Site Drop-Off");
 
- useEffect( => {
+useEffect(() => {
  supabase
  .from("clients")
  .select("id, company_name")
