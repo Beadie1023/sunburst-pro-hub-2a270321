@@ -31,7 +31,7 @@ interface Order {
   total: number;
   subtotal: number;
   vat_amount: number;
-  items: OrderItem[]; // FIX 1: Must be typed as an array to map correctly
+  items: OrderItem[];
   created_at: string;
   client_id: string | null;
   clients: { company_name: string; phone: string | null; email: string | null } | null;
@@ -46,25 +46,20 @@ interface HistoryEntry {
 
 const STATUSES = ["pending", "confirmed", "preparing", "out_for_delivery", "completed", "cancelled"];
 
-// FIX 2: Added function argument parentheses
 function OrderDetail() {
-  // FIX 3 & 4: Executed hooks properly with brackets
   const { orderId } = Route.useParams();
   const navigate = useNavigate();
-  
   const [order, setOrder] = useState<Order | null>(null);
-  // FIX 5: Typed as an array structure and initialized with empty brackets [] to prevent crash
-  const [history, setHistory] = useState<HistoryEntry[]>([]); 
+  const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
 
-  // FIX 6: Added parentheses to async block declaration
   const load = async () => {
     const { data: o, error: orderError } = await supabase
       .from("orders")
       .select("*, clients(company_name, phone, email)")
       .eq("id", orderId)
-      .maybeSingle(); // FIX 7: Appended method execution brackets
+      .maybeSingle();
 
     if (orderError) {
       toast.error(orderError.message);
@@ -81,22 +76,18 @@ function OrderDetail() {
     }
 
     setOrder(o as unknown as Order);
-    // FIX 8: Cleaned empty evaluation token and type cast array correctly
-    setHistory((h ?? []) as HistoryEntry[]); 
-    setLoading(false);
+    setHistory((h ?? []) as HistoryEntry[]);
+    loading && setLoading(false);
   };
 
-  // FIX 9: Added parameter brackets to useEffect callback
   useEffect(() => {
-    load(); // FIX 10: Invoked load function
+    load();
   }, [orderId]);
 
   const updateStatus = async (status: string) => {
     if (!order) return;
     setUpdating(true);
-    
-    // FIX 11: Invoked getUser execution brackets
-    const { data: u } = await supabase.auth.getUser(); 
+    const { data: u } = await supabase.auth.getUser();
     const { error } = await supabase
       .from("orders")
       .update({ status })
@@ -115,11 +106,10 @@ function OrderDetail() {
 
     setUpdating(false);
     toast.success(`Status updated to ${status}`);
-    load(); // FIX 12: Invoked load execution brackets
+    load();
   };
 
-  // FIX 13: Added parameter parentheses
-  const markPaid = async () => { 
+  const markPaid = async () => {
     if (!order) return;
     setUpdating(true);
     const { error } = await supabase
@@ -130,17 +120,15 @@ function OrderDetail() {
     setUpdating(false);
     if (error) return toast.error(error.message);
     toast.success("Marked as paid");
-    load(); // FIX 14: Invoked load execution brackets
+    load();
   };
 
-  // FIX 15: Added parameter parentheses
-  const markDelivered = async () => { 
+  const markDelivered = async () => {
     if (!order) return;
     await updateStatus("completed");
   };
 
-  // FIX 16: Added parameter parentheses
-  const reorder = async () => { 
+  const reorder = async () => {
     if (!order) return;
     const { data, error } = await supabase
       .from("orders")
@@ -156,8 +144,8 @@ function OrderDetail() {
         status: "pending",
         payment_status: "unpaid",
       })
-      .select() // FIX 17: Appended select statement execution brackets
-      .single(); // FIX 18: Appended single statement execution brackets
+      .select()
+      .single();
 
     if (error) return toast.error(error.message);
     toast.success("Reorder created");
@@ -185,8 +173,7 @@ function OrderDetail() {
           <div>
             <h1 className="font-mono text-2xl font-bold text-primary">{order.order_number}</h1>
             <p className="text-sm text-muted-foreground">
-              {/* FIX 19: Executed method call bracket parameters */}
-              {order.clients?.company_name ?? "Walk-in"} · {new Date(order.created_at).toLocaleString()} 
+              {order.clients?.company_name ?? "Walk-in"} · {new Date(order.created_at).toLocaleString()}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -268,3 +255,17 @@ function OrderDetail() {
               <li key={h.id} className="flex gap-3">
                 <CheckCircle2 className="mt-0.5 h-5 w-5 text-accent" />
                 <div>
+                  <div className="font-medium">{h.status}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {new Date(h.created_at).toLocaleString()}
+                  </div>
+                  {h.note && <div className="mt-1 text-sm">{h.note}</div>}
+                </div>
+              </li>
+            ))}
+          </ol>
+        )}
+      </Card>
+    </div>
+  );
+}
