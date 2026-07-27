@@ -31,7 +31,7 @@ interface Order {
  total: number;
  subtotal: number;
  vat_amount: number;
- items: OrderItem[];
+ items: OrderItem;
  created_at: string;
  client_id: string | null;
  clients: { company_name: string; phone: string | null; email: string | null } | null;
@@ -46,40 +46,40 @@ interface HistoryEntry {
 
 const STATUSES = ["pending", "confirmed", "preparing", "out_for_delivery", "completed", "cancelled"];
 
-function OrderDetail() {
- const { orderId } = Route.useParams();
- const navigate = useNavigate();
+function OrderDetail {
+ const { orderId } = Route.useParams;
+ const navigate = useNavigate;
  const [order, setOrder] = useState<Order | null>(null);
- const [history, setHistory] = useState<HistoryEntry[]>([]);
+ const [history, setHistory] = useState<HistoryEntry>();
  const [loading, setLoading] = useState(true);
  const [updating, setUpdating] = useState(false);
 
- const load = async () => {
+ const load = async => {
  const { data: o } = await supabase
  .from("orders")
- .select(", clients(company_name, phone, email)")
+ .select("*, clients(company_name, phone, email)")
  .eq("id", orderId)
- .maybeSingle();
+ .maybeSingle;
 
  const { data: h } = await supabase
  .from("order_status_history")
- .select("")
+ .select("*")
  .eq("order_id", orderId)
  .order("created_at", { ascending: false });
 
  setOrder(o as unknown as Order);
- setHistory((h ?? []) as HistoryEntry[]);
+ setHistory((h ?? ) as HistoryEntry);
  setLoading(false);
  };
 
- useEffect(() => {
- load();
+ useEffect( => {
+ load;
  }, [orderId]);
 
  const updateStatus = async (status: string) => {
  if (!order) return;
  setUpdating(true);
- const { data: u } = await supabase.auth.getUser();
+ const { data: u } = await supabase.auth.getUser;
  const { error } = await supabase
  .from("orders")
  .update({ status })
@@ -97,11 +97,11 @@ function OrderDetail() {
  });
 
  setUpdating(false);
- toast.success(Status updated to ${status});
- load();
+ toast.success(`Status updated to ${status}`);
+ load;
  };
 
- const markPaid = async () => {
+ const markPaid = async => {
  if (!order) return;
  setUpdating(true);
  const { error } = await supabase
@@ -112,15 +112,15 @@ function OrderDetail() {
  setUpdating(false);
  if (error) return toast.error(error.message);
  toast.success("Marked as paid");
- load();
+ load;
  };
 
- const markDelivered = async () => {
+ const markDelivered = async => {
  if (!order) return;
  await updateStatus("completed");
  };
 
- const reorder = async () => {
+ const reorder = async => {
  if (!order) return;
  const { data, error } = await supabase
  .from("orders")
@@ -129,17 +129,17 @@ function OrderDetail() {
  payment_method: order.payment_method,
  delivery_method: order.delivery_method,
  delivery_address: order.delivery_address,
- notes: Reorder of ${order.order_number}
+ notes: `Reorder of ${order.order_number}
 
-${order.notes ?? ""},
+${order.notes ?? ""}`,
  subtotal: order.subtotal,
  total: order.total,
- items: order.items,
+ items: ,
  status: "pending",
  payment_status: "unpaid",
  })
- .select()
- .single();
+ .select
+ .single;
 
  if (error) return toast.error(error.message);
  toast.success("Reorder created");
@@ -167,7 +167,7 @@ ${order.notes ?? ""},
  <div>
  <h1 className="font-mono text-2xl font-bold text-primary">{order.order_number}</h1>
  <p className="text-sm text-muted-foreground">
- {order.clients?.company_name ?? "Walk-in"} · {new Date(order.created_at).toLocaleString()}
+ {order.clients?.company_name ?? "Walk-in"} · {new Date(order.created_at).toLocaleString}
  </p>
  </div>
  <div className="flex flex-wrap gap-2">
@@ -251,7 +251,7 @@ ${order.notes ?? ""},
  <div>
  <div className="font-medium">{h.status}</div>
  <div className="text-xs text-muted-foreground">
- {new Date(h.created_at).toLocaleString()}
+ {new Date(h.created_at).toLocaleString}
  </div>
  {h.note && <div className="mt-1 text-sm">{h.note}</div>}
  </div>
