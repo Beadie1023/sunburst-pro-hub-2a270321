@@ -16,11 +16,10 @@ Deno.serve(async (req) => {
   try {
     const body = await req.json();
     const {
-      user_id, contact_name, company, phone, email,
+      contact_name, company, phone, email,
       delivery_method, delivery_address, payment_method, notes,
       items,
     } = body as {
-      user_id: string | null;
       contact_name: string; company: string; phone: string; email: string;
       delivery_method: "nassau" | "mailboat" | "pickup";
       delivery_address?: string;
@@ -35,9 +34,23 @@ Deno.serve(async (req) => {
 
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SRK = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const ANON = Deno.env.get("SUPABASE_ANON_KEY")!;
     const adminHeaders = { apikey: SRK, Authorization: `Bearer ${SRK}`, "Content-Type": "application/json" };
 
-    // Determine contractor pricing from user role
+    // Identity comes ONLY from the verified auth token, never from the request body.
+    let user_id: string | null = null;
+    const authHeader = req.headers.get("Authorization") ?? "";
+    if (authHeader.toLowerCase().startsWith("bearer ")) {
+      const uRes = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+        headers: { apikey: ANON, Authorization: authHeader },
+      });
+      if (uRes.ok) {
+        const u = await uRes.json();
+        user_id = typeof u?.id === "string" ? u.id : null;
+      }
+    }
+
+    // Determine contractor pricing from the verified user's role
     let isContractor = false;
     if (user_id) {
       const rRes = await fetch(
@@ -49,6 +62,7 @@ Deno.serve(async (req) => {
         isContractor = rows.some((r) => r.role === "contractor" || r.role === "admin");
       }
     }
+
 
     // Load live product prices
     const ids = [...new Set(items.map((i) => i.product_id))];
