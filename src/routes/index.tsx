@@ -18,6 +18,7 @@ import {
   Waves,
 } from "lucide-react";
 import heroBg from "@/assets/bahamas-hero.jpg";
+import logoAsset from "@/assets/sunburst-logo.png.asset.json";
 
 const SUNBURST_EMAIL = "sunburstpaints242@gmail.com";
 const mailto = (subject: string) =>
@@ -330,8 +331,12 @@ function Landing() {
       <footer className="border-t border-border bg-primary py-10 text-primary-foreground/85">
         <div className="container mx-auto grid gap-6 px-4 md:grid-cols-4">
           <div>
-            <div className="flex items-center gap-2 font-bold text-primary-foreground">
-              <Sun className="h-5 w-5 text-accent" /> Sunburst Paints
+            <div className="inline-flex items-center rounded-md bg-white px-2.5 py-1.5">
+              <img
+                src={logoAsset.url}
+                alt="SunBurst Paints & Coatings — Superior Quality Paints"
+                className="h-10 w-auto"
+              />
             </div>
             <p className="mt-2 text-xs">Made in The Bahamas. Built for contractors.</p>
           </div>
