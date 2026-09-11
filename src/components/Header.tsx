@@ -2,7 +2,8 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { useAuth } from "@/lib/auth";
 import { useCart } from "@/lib/cart";
 import { Button } from "@/components/ui/button";
-import { ShoppingCart, Sun } from "lucide-react";
+import { ShoppingCart } from "lucide-react";
+import logoAsset from "@/assets/sunburst-logo.png.asset.json";
 
 export function Header() {
   const { user, role, signOut } = useAuth();
@@ -14,15 +15,16 @@ export function Header() {
       style={{ background: "var(--gradient-header)" }}
     >
       <div className="container mx-auto flex h-16 items-center justify-between px-4 text-primary-foreground">
-        <Link to="/" className="flex items-center gap-2 font-bold text-primary-foreground">
-          <div className="flex h-9 w-9 items-center justify-center rounded-md bg-accent text-accent-foreground shadow-md">
-            <Sun className="h-5 w-5" />
+        <Link to="/" className="flex items-center gap-2" aria-label="Sunburst Paints & Coatings home">
+          <div className="rounded-md bg-white px-2.5 py-1 shadow-md">
+            <img
+              src={logoAsset.url}
+              alt="SunBurst Paints & Coatings — Superior Quality Paints"
+              className="h-9 w-auto"
+            />
           </div>
-          <div className="leading-tight">
-            <div className="text-base">SUNBURST PAINTS</div>
-            <div className="text-[10px] font-medium uppercase tracking-wider text-accent">
-              Pro-Portal
-            </div>
+          <div className="hidden text-[10px] font-medium uppercase tracking-wider text-accent sm:block">
+            Pro-Portal
           </div>
         </Link>
         <nav className="hidden items-center gap-6 text-sm font-medium md:flex">
