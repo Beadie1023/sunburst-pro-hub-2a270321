@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 interface PlaceOrderInput {
   data: {
-    user_id: string | null;
+    user_id?: string | null; // ignored by the server; identity comes from the auth token
     contact_name: string;
     company: string;
     phone: string;
@@ -17,9 +17,11 @@ interface PlaceOrderInput {
 }
 
 export async function placeOrder(input: PlaceOrderInput) {
+  const { user_id: _ignored, ...payload } = input.data;
   const { data, error } = await supabase.functions.invoke("place-order", {
-    body: input.data,
+    body: payload,
   });
+
   if (error) throw new Error(error.message || "Failed to place order");
   if (data?.error) throw new Error(data.error);
   return data as {
