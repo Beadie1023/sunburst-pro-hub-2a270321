@@ -1,6 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import type { Json } from "@/integrations/supabase/types";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -130,6 +131,12 @@ function OrderDetail() {
 
   const reorder = async () => {
     if (!order) return;
+    const items: Json = order.items.map((item) => ({
+      name: item.name,
+      quantity: item.quantity,
+      unit_price: item.unit_price,
+      line_total: item.line_total,
+    }));
     const { data, error } = await supabase
       .from("orders")
       .insert({
@@ -140,7 +147,7 @@ function OrderDetail() {
         notes: `Reorder of ${order.order_number}\n\n${order.notes ?? ""}`,
         subtotal: order.subtotal,
         total: order.total,
-        items: order.items,
+        items,
         status: "pending",
         payment_status: "unpaid",
       })
