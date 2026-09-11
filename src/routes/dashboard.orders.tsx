@@ -44,51 +44,51 @@ const PAYMENT_STYLE: Record<string, string> = {
 };
 
 function StatusPill({ value, map }: { value: string; map: Record<string, string> }) {
- const cls = map[value] ?? "bg-muted text-muted-foreground border-border";
- return (
- <span className={inline-flex rounded-full border px-2 py-0.5 text-[11px] font-semibold capitalize ${cls}}>
- {value.replace(/_/g, " ")}
- </span>
- );
+  const cls = map[value] ?? "bg-muted text-muted-foreground border-border";
+  return (
+    <span className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] font-semibold capitalize ${cls}`}>
+      {value.replace(/_/g, " ")}
+    </span>
+  );
 }
 
-function OrdersPage {
- const matchRoute = useMatchRoute;
- const isListRoute = matchRoute({ to: "/dashboard/orders", exact: true });
+function OrdersPage() {
+  const matchRoute = useMatchRoute();
+  const isListRoute = matchRoute({ to: "/dashboard/orders", fuzzy: false } as never);
 
- const [orders, setOrders] = useState<Order>();
- const [loading, setLoading] = useState(true);
- const [q, setQ] = useState("");
- const [status, setStatus] = useState("all");
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [q, setQ] = useState("");
+  const [status, setStatus] = useState("all");
 
- useEffect( => {
- supabase
- .from("orders")
- .select(", clients(company_name)")
- .order("created_at", { ascending: false })
- .then(({ data }) => {
- setOrders((data ?? ) as Order);
- setLoading(false);
- });
- }, );
+  useEffect(() => {
+    supabase
+      .from("orders")
+      .select("*, clients(company_name)")
+      .order("created_at", { ascending: false })
+      .then(({ data }) => {
+        setOrders((data ?? []) as unknown as Order[]);
+        setLoading(false);
+      });
+  }, []);
 
- const filtered = useMemo( => {
- const needle = q.trim.toLowerCase;
- return orders.filter((o) => {
- if (status !== "all" && o.status !== status) return false;
- if (!needle) return true;
- return (
- o.order_number.toLowerCase.includes(needle) ||
- (o.clients?.company_name ?? "").toLowerCase.includes(needle)
- );
- });
- }, [orders, q, status]);
+  const filtered = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    return orders.filter((o) => {
+      if (status !== "all" && o.status !== status) return false;
+      if (!needle) return true;
+      return (
+        o.order_number.toLowerCase().includes(needle) ||
+        (o.clients?.company_name ?? "").toLowerCase().includes(needle)
+      );
+    });
+  }, [orders, q, status]);
 
- const stats = useMemo( => {
- const now = Date.now;
- const monthRevenue = orders
- .filter((o) => now - new Date(o.created_at).getTime < 30  24  60  60 * 1000)
- .reduce((s, o) => s + Number(o.total ?? 0), 0);
+  const stats = useMemo(() => {
+    const now = Date.now();
+    const monthRevenue = orders
+      .filter((o) => now - new Date(o.created_at).getTime() < 30 * 24 * 60 * 60 * 1000)
+      .reduce((s, o) => s + Number(o.total ?? 0), 0);
  return {
  total: orders.length,
  pending: orders.filter((o) => o.status === "pending").length,
@@ -212,7 +212,7 @@ function OrdersPage {
  <TableRow
  key={o.id}
  className="cursor-pointer hover:bg-muted/50"
- onClick={ => (window.location.href = /dashboard/orders/${o.id})}
+ onClick={() => (window.location.href = `/dashboard/orders/${o.id}`)}
  >
  <TableCell className="font-mono text-sm font-semibold text-accent">{o.order_number}</TableCell>
  <TableCell>{o.clients?.company_name ?? "-"}</TableCell>
@@ -235,7 +235,7 @@ function OrdersPage {
  </TableCell>
  <TableCell className="text-right font-semibold">${Number(o.total).toFixed(2)}</TableCell>
  <TableCell className="text-xs text-muted-foreground">
- {new Date(o.created_at).toLocaleDateString}
+ {new Date(o.created_at).toLocaleDateString()}
  </TableCell>
  </TableRow>
  ))}
