@@ -54,7 +54,7 @@ function StatusPill({ value, map }: { value: string; map: Record<string, string>
 
 function OrdersPage() {
   const matchRoute = useMatchRoute();
-  const isListRoute = matchRoute({ to: "/dashboard/orders", exact: true });
+  const isListRoute = matchRoute({ to: "/dashboard/orders", fuzzy: false } as never);
 
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
