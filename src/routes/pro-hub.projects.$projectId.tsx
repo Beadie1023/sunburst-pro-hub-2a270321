@@ -9,7 +9,9 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Loader2, Trash2, Calculator, Plus, Search, Package } from "lucide-react";
+import { ArrowLeft, Loader2, Trash2, Calculator, Plus, Search, Package, FileDown } from "lucide-react";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 export const Route = createFileRoute("/pro-hub/projects/$projectId")({
   component: ProjectDetail,
@@ -206,6 +208,98 @@ function ProjectDetail() {
     setItems((xs) => xs.filter((i) => i.id !== id));
   };
 
+  const generateQuotePDF = () => {
+    if (!project) return;
+    const doc = new jsPDF();
+
+    // Header
+    doc.setFontSize(18);
+    doc.setTextColor(20, 40, 90);
+    doc.text("Sunburst Paints & Coatings Ltd.", 14, 18);
+    doc.setFontSize(10);
+    doc.setTextColor(90, 90, 90);
+    doc.text("Nassau, Bahamas · sunburstpaints242@gmail.com", 14, 24);
+
+    doc.setFontSize(14);
+    doc.setTextColor(0, 0, 0);
+    doc.text("Project Quote", 14, 36);
+
+    doc.setFontSize(10);
+    doc.setTextColor(60, 60, 60);
+    const dateStr = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+    doc.text(`Date: ${dateStr}`, 14, 43);
+    doc.text(`Project: ${project.name}`, 14, 49);
+    if (project.client_name) doc.text(`Client: ${project.client_name}`, 14, 55);
+    if (project.location) doc.text(`Location: ${project.location}`, 14, 61);
+
+    let cursorY = project.location ? 68 : (project.client_name ? 62 : 56);
+
+    // Paint colors table
+    if (colors.length > 0) {
+      autoTable(doc, {
+        startY: cursorY,
+        head: [["Color", "Code", "Finish", "Gallons"]],
+        body: colors.map((c) => [
+          c.paint_colors?.name ?? c.matcher_color_name ?? "Unnamed color",
+          c.paint_colors?.code ?? c.matcher_sku ?? "—",
+          c.finish,
+          String(c.gallons),
+        ]),
+        headStyles: { fillColor: [20, 40, 90] },
+        styles: { fontSize: 9 },
+        margin: { left: 14, right: 14 },
+      });
+      // @ts-expect-error - lastAutoTable is attached by the plugin at runtime
+      cursorY = doc.lastAutoTable.finalY + 8;
+    }
+
+    // Sunburst product line items
+    if (items.length > 0) {
+      autoTable(doc, {
+        startY: cursorY,
+        head: [["SKU", "Item", "Qty", "Unit Price", "Line Total"]],
+        body: items.map((it) => {
+          const unit = unitPrice(it.products, isContractor);
+          return [
+            it.products?.sku ?? "—",
+            it.products?.name ?? "Product unavailable",
+            String(it.quantity),
+            `$${unit.toFixed(2)}`,
+            `$${(unit * it.quantity).toFixed(2)}`,
+          ];
+        }),
+        headStyles: { fillColor: [20, 40, 90] },
+        styles: { fontSize: 9 },
+        margin: { left: 14, right: 14 },
+      });
+      // @ts-expect-error - lastAutoTable is attached by the plugin at runtime
+      cursorY = doc.lastAutoTable.finalY + 8;
+    }
+
+    // Totals
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const rightX = pageWidth - 14;
+    doc.setFontSize(10);
+    doc.setTextColor(60, 60, 60);
+    doc.text(`Subtotal: $${quoteTotals.subtotal.toFixed(2)}`, rightX, cursorY, { align: "right" });
+    doc.text(`VAT (${(VAT * 100).toFixed(0)}%): $${quoteTotals.vat.toFixed(2)}`, rightX, cursorY + 6, { align: "right" });
+    doc.setFontSize(12);
+    doc.setTextColor(20, 40, 90);
+    doc.text(`Total: $${quoteTotals.total.toFixed(2)}`, rightX, cursorY + 14, { align: "right" });
+
+    doc.setFontSize(8);
+    doc.setTextColor(140, 140, 140);
+    doc.text(
+      "This quote covers Sunburst-supplied paint and materials only. Prices are indicative and subject to confirmation at order placement.",
+      14,
+      doc.internal.pageSize.getHeight() - 12,
+      { maxWidth: pageWidth - 28 },
+    );
+
+    const safeName = project.name.replace(/[^a-z0-9]+/gi, "-").toLowerCase();
+    doc.save(`sunburst-quote-${safeName}.pdf`);
+  };
+
   if (loading) return <div className="flex justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-accent" /></div>;
   if (!project || (user && project && (project as Project & { user_id?: string }).user_id && false)) {
     // RLS will keep us safe; show generic message if missing
@@ -399,10 +493,21 @@ function ProjectDetail() {
           </ul>
         )}
 
-        <div className="mt-4 ml-auto max-w-xs space-y-1 border-t border-border pt-3 text-sm">
-          <div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span>${quoteTotals.subtotal.toFixed(2)}</span></div>
-          <div className="flex justify-between"><span className="text-muted-foreground">VAT (10%)</span><span>${quoteTotals.vat.toFixed(2)}</span></div>
-          <div className="flex justify-between text-base font-bold text-primary"><span>Quote Total</span><span>${quoteTotals.total.toFixed(2)}</span></div>
+        <div className="mt-4 flex flex-wrap items-end justify-between gap-4">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={generateQuotePDF}
+            disabled={items.length === 0 && colors.length === 0}
+          >
+            <FileDown className="mr-2 h-4 w-4" />
+            Download Quote PDF
+          </Button>
+          <div className="ml-auto max-w-xs space-y-1 border-t border-border pt-3 text-sm">
+            <div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span>${quoteTotals.subtotal.toFixed(2)}</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">VAT (10%)</span><span>${quoteTotals.vat.toFixed(2)}</span></div>
+            <div className="flex justify-between text-base font-bold text-primary"><span>Quote Total</span><span>${quoteTotals.total.toFixed(2)}</span></div>
+          </div>
         </div>
       </Card>
 
