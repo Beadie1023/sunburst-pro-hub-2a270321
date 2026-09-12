@@ -71,29 +71,29 @@
 
 :root {
   --radius: 0.75rem;
-  /* Sunburst Paints — tropical Bahamian contractor theme */
-  --background: oklch(0.985 0.008 220);
+  /* Sunburst Paints — matched to sunburstbahamas.com brand colors */
+  --background: oklch(0.993 0.012 96.4);
   --foreground: oklch(0.18 0.06 260);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.18 0.06 260);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.18 0.06 260);
-  /* Deep Navy #002147 */
-  --primary: oklch(0.24 0.09 258);
+  /* Sunburst Navy #123866 */
+  --primary: oklch(0.341 0.091 255.3);
   --primary-foreground: oklch(0.99 0 0);
-  --primary-glow: oklch(0.32 0.11 258);
-  /* Safety Orange #FF6700 */
-  --accent: oklch(0.7 0.21 45);
+  --primary-glow: oklch(0.42 0.1 255.3);
+  /* Sunburst Magenta/Pink #C62A67 */
+  --accent: oklch(0.553 0.195 3.1);
   --accent-foreground: oklch(1 0 0);
-  --accent-glow: oklch(0.78 0.21 50);
-  /* Ocean Teal #00A8A8 */
-  --teal: oklch(0.66 0.11 195);
-  --teal-foreground: oklch(0.99 0 0);
-  /* Sand Beige #F5E6CA */
-  --sand: oklch(0.93 0.04 85);
-  --sand-foreground: oklch(0.24 0.09 258);
-  --secondary: oklch(0.96 0.015 220);
-  --secondary-foreground: oklch(0.24 0.09 258);
+  --accent-glow: oklch(0.62 0.2 3.1);
+  /* Sunburst Teal #65C8C4 */
+  --teal: oklch(0.772 0.093 191.9);
+  --teal-foreground: oklch(0.18 0.06 260);
+  /* Sunburst Cream #FFFDF4 */
+  --sand: oklch(0.96 0.02 96.4);
+  --sand-foreground: oklch(0.341 0.091 255.3);
+  --secondary: oklch(0.97 0.015 96.4);
+  --secondary-foreground: oklch(0.341 0.091 255.3);
   --muted: oklch(0.95 0.01 220);
   --muted-foreground: oklch(0.45 0.03 258);
   --destructive: oklch(0.6 0.24 27);
@@ -104,12 +104,12 @@
   --warning-foreground: oklch(0.24 0.09 258);
   --border: oklch(0.9 0.01 220);
   --input: oklch(0.92 0.01 220);
-  --ring: oklch(0.7 0.21 45);
-  --gradient-hero: linear-gradient(135deg, oklch(0.18 0.08 258 / 0.85), oklch(0.28 0.1 258 / 0.65));
-  --gradient-accent: linear-gradient(135deg, oklch(0.7 0.21 45), oklch(0.64 0.22 35));
-  --gradient-ocean: linear-gradient(135deg, oklch(0.66 0.11 195), oklch(0.55 0.12 220));
-  --gradient-header: linear-gradient(180deg, oklch(0.24 0.09 258 / 0.92), oklch(0.24 0.09 258 / 0.7));
-  --shadow-pro: 0 10px 40px -10px oklch(0.24 0.09 258 / 0.35);
+  --ring: oklch(0.553 0.195 3.1);
+  --gradient-hero: linear-gradient(135deg, oklch(0.24 0.08 255.3 / 0.85), oklch(0.34 0.1 255.3 / 0.65));
+  --gradient-accent: linear-gradient(135deg, oklch(0.553 0.195 3.1), oklch(0.5 0.2 3.1));
+  --gradient-ocean: linear-gradient(135deg, oklch(0.772 0.093 191.9), oklch(0.65 0.1 220));
+  --gradient-header: linear-gradient(180deg, oklch(0.341 0.091 255.3 / 0.92), oklch(0.341 0.091 255.3 / 0.7));
+  --shadow-pro: 0 10px 40px -10px oklch(0.341 0.091 255.3 / 0.35);
   --shadow-glass: 0 8px 32px -4px oklch(0.18 0.06 260 / 0.18);
   --glass-bg: oklch(1 0 0 / 0.72);
   --glass-border: oklch(1 0 0 / 0.45);
