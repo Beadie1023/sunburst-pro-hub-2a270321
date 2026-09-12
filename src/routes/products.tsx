@@ -26,6 +26,7 @@ interface Product {
   status: string;
   price: number | null;
   contractor_price: number | null;
+  image_url: string | null;
 }
 
 function ProductsPage() {
