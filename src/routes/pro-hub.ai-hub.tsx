@@ -63,7 +63,7 @@ const TOOLS: ToolCard[] = [
     description:
       "See any Sunburst color on your client's walls before opening a single can. Upload a room photo and preview instantly.",
     icon: Camera,
-    href: "/pro-hub/ai-design-tools", // Fixed from "#" to point directly to your master layout
+    href: "/pro-hub/ai-design-tools#visualizer",
     gradient: "from-accent to-accent-glow",
     badge: "Beta",
   },
