@@ -16,6 +16,69 @@ interface PaintColor {
 
 const MAX_IMAGE_EDGE = 1400;
 
+// Gradient magnitude above which a pixel boundary is treated as a real
+// architectural edge (a corner, trim line, door frame) that the flood-fill
+// should never cross, regardless of the Wall range setting. Tuned for
+// typical phone photos after a light denoise blur — raise this if the fill
+// is stopping too early on textured walls, lower it if it's leaking past
+// faint boundaries on flat, evenly-lit walls.
+const EDGE_THRESHOLD = 70;
+
+/**
+ * Precomputes a per-pixel edge-strength map for one photo. Blurs luminance
+ * slightly first (to ignore JPEG noise/grain) then runs a Sobel filter, so
+ * only real intensity boundaries — not sensor noise — count as edges.
+ */
+function computeEdgeMap(width: number, height: number, data: Uint8ClampedArray): Float32Array {
+  const luminance = new Float32Array(width * height);
+  for (let i = 0; i < width * height; i += 1) {
+    const o = i * 4;
+    luminance[i] = data[o] * 0.2126 + data[o + 1] * 0.7152 + data[o + 2] * 0.0722;
+  }
+
+  const blurred = new Float32Array(width * height);
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      let sum = 0;
+      let count = 0;
+      for (let dy = -1; dy <= 1; dy += 1) {
+        const ny = y + dy;
+        if (ny < 0 || ny >= height) continue;
+        for (let dx = -1; dx <= 1; dx += 1) {
+          const nx = x + dx;
+          if (nx < 0 || nx >= width) continue;
+          sum += luminance[ny * width + nx];
+          count += 1;
+        }
+      }
+      blurred[y * width + x] = sum / count;
+    }
+  }
+
+  const gx = [-1, 0, 1, -2, 0, 2, -1, 0, 1];
+  const gy = [-1, -2, -1, 0, 0, 0, 1, 2, 1];
+  const edges = new Float32Array(width * height);
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      let sx = 0;
+      let sy = 0;
+      let k = 0;
+      for (let dy = -1; dy <= 1; dy += 1) {
+        const ny = Math.min(height - 1, Math.max(0, y + dy));
+        for (let dx = -1; dx <= 1; dx += 1) {
+          const nx = Math.min(width - 1, Math.max(0, x + dx));
+          const v = blurred[ny * width + nx];
+          sx += v * gx[k];
+          sy += v * gy[k];
+          k += 1;
+        }
+      }
+      edges[y * width + x] = Math.sqrt(sx * sx + sy * sy);
+    }
+  }
+  return edges;
+}
+
 function hexToRgb(hex: string) {
   const normalized = hex.replace("#", "");
   const value = Number.parseInt(
@@ -40,6 +103,9 @@ function hexToRgb(hex: string) {
 export function RoomVisualizer() {
   const sourceCanvasRef = useRef<HTMLCanvasElement>(null);
   const previewCanvasRef = useRef<HTMLCanvasElement>(null);
+  // Edge-strength map for the current photo, computed once on load and
+  // reused by every flood-fill so re-tapping or changing tolerance stays fast.
+  const edgeMapRef = useRef<Float32Array | null>(null);
 
   const [colors, setColors] = useState<PaintColor[]>([]);
   const [colorsLoading, setColorsLoading] = useState(true);
@@ -130,6 +196,7 @@ export function RoomVisualizer() {
       const startPixel = y * width + x;
       const startOffset = startPixel * 4;
       const target = [image[startOffset], image[startOffset + 1], image[startOffset + 2]];
+      const edgeMap = edgeMapRef.current;
       const selected = new Uint8Array(width * height);
       const visited = new Uint8Array(width * height);
       const queue = new Int32Array(width * height);
@@ -138,9 +205,13 @@ export function RoomVisualizer() {
       queue[0] = startPixel;
       visited[startPixel] = 1;
 
-      // Bounded flood-fill: only spreads to neighboring pixels within
-      // `tolerance` color distance of the tapped point, so it naturally
-      // stops at wall/trim/ceiling boundaries.
+      // Bounded flood-fill: spreads to neighboring pixels within `tolerance`
+      // color distance of the tapped point (so it settles into one wall's
+      // overall color range), but is also stopped at any pixel-to-pixel step
+      // that crosses a real edge in the photo — a corner, trim line, or door
+      // frame — even if both sides happen to be close in raw color. That's
+      // what lets a higher Wall range work on flat cream/white rooms without
+      // the fill leaking through the ceiling or into a closet opening.
       while (head < tail) {
         const pixel = queue[head++];
         const offset = pixel * 4;
@@ -154,10 +225,13 @@ export function RoomVisualizer() {
         if (px > 0) neighbors.push(pixel - 1);
         if (px < width - 1) neighbors.push(pixel + 1);
         for (const neighbor of neighbors) {
-          if (neighbor >= 0 && neighbor < visited.length && !visited[neighbor]) {
-            visited[neighbor] = 1;
-            queue[tail++] = neighbor;
+          if (neighbor < 0 || neighbor >= visited.length || visited[neighbor]) continue;
+          visited[neighbor] = 1;
+          if (edgeMap) {
+            const crossingStrength = Math.max(edgeMap[pixel], edgeMap[neighbor]);
+            if (crossingStrength > EDGE_THRESHOLD) continue; // real boundary — do not cross
           }
+          queue[tail++] = neighbor;
         }
       }
       setMask(selected);
@@ -194,6 +268,14 @@ export function RoomVisualizer() {
       preview.width = source.width;
       preview.height = source.height;
       preview.getContext("2d")?.drawImage(source, 0, 0);
+
+      // Precompute edge strength once per photo so every tap/tolerance
+      // change reuses it instead of re-running Sobel each time.
+      if (context) {
+        const pixels = context.getImageData(0, 0, source.width, source.height);
+        edgeMapRef.current = computeEdgeMap(source.width, source.height, pixels.data);
+      }
+
       setPhotoLoaded(true);
       setSeed(null);
       setMask(null);
