@@ -138,14 +138,13 @@ function AiDesignToolsPage() {
     setColorResults([]);
 
     try {
-      const base64Data = await fileToBase64(matchFile);
-      const fileMime = matchFile.type || "image/jpeg";
+      const { base64: base64Data, mimeType } = await fileToBase64(matchFile);
 
       // FIXED STRUCTURE: Matched perfectly with the backend Zod validation keys
       const response = await recommendColors({
         data: {
           imageBase64: base64Data,
-          mimeType: fileMime,
+          mimeType,
           roomType: roomType,
           style: stylePreference,
           notes: contractorNotes,
