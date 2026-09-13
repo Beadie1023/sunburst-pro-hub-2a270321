@@ -243,7 +243,17 @@ function AdminProductsPage() {
                   </TableCell>
 
                   <TableCell className="font-medium">
-                    {p.name}
+                    <div className="flex items-center gap-2">
+                      {p.image_url && (
+                        <img
+                          src={p.image_url}
+                          alt={p.name}
+                          loading="lazy"
+                          className="h-10 w-10 rounded border border-border bg-secondary/40 object-contain"
+                        />
+                      )}
+                      <span>{p.name}</span>
+                    </div>
                   </TableCell>
 
                   <TableCell>{p.category}</TableCell>
