@@ -2,12 +2,11 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState, useRef, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { recommendColors, visualizeRoom } from "@/lib/ai-advisor.functions";
+import { recommendColors } from "@/lib/ai-advisor.functions";
 import {
   Upload,
   Loader2,
   AlertCircle,
-  Wand2,
 } from "lucide-react";
 
 export const Route = createFileRoute("/pro-hub/ai-design-tools")({
@@ -108,22 +107,27 @@ function AiDesignToolsPage() {
   const [stylePreference, setStylePreference] = useState("Minimalist");
   const [contractorNotes, setContractorNotes] = useState("");
   const [colorResults, setColorResults] = useState<any[]>([]);
-  const [uploadedPhoto, setUploadedPhoto] = useState<{ base64: string; mime: string } | null>(null);
-  const [visualizingIndex, setVisualizingIndex] = useState<number | null>(null);
-  const [visualizedImages, setVisualizedImages] = useState<Record<number, string>>({});
-  const [visualizeError, setVisualizeError] = useState<string | null>(null);
 
-  const fileToBase64 = (file: File): Promise<string> => {
+  // Downscale large photos before sending — full-size phone shots exceed the
+  // request size limit and the edge function call fails at the network level.
+  const fileToBase64 = (file: File): Promise<{ base64: string; mimeType: string }> => {
     return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = () => {
-        const base64String = reader.result as string;
-        const parts = base64String.split(",");
-        const rawBase64 = parts.length > 1 ? parts[1] : parts[0];
-        resolve(rawBase64);
+      const img = new Image();
+      img.onload = () => {
+        const MAX = 1024;
+        const scale = Math.min(1, MAX / Math.max(img.width, img.height));
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return reject(new Error("Could not process image"));
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+        resolve({ base64: dataUrl.split(",")[1], mimeType: "image/jpeg" });
+        URL.revokeObjectURL(img.src);
       };
-      reader.onerror = (error) => reject(error);
+      img.onerror = () => reject(new Error("Could not read image file"));
+      img.src = URL.createObjectURL(file);
     });
   };
 
@@ -134,17 +138,13 @@ function AiDesignToolsPage() {
     setColorResults([]);
 
     try {
-      const base64Data = await fileToBase64(matchFile);
-      const fileMime = matchFile.type || "image/jpeg";
-      setUploadedPhoto({ base64: base64Data, mime: fileMime });
-      setVisualizedImages({});
-      setVisualizeError(null);
+      const { base64: base64Data, mimeType } = await fileToBase64(matchFile);
 
       // FIXED STRUCTURE: Matched perfectly with the backend Zod validation keys
       const response = await recommendColors({
         data: {
           imageBase64: base64Data,
-          mimeType: fileMime,
+          mimeType,
           roomType: roomType,
           style: stylePreference,
           notes: contractorNotes,
@@ -159,29 +159,6 @@ function AiDesignToolsPage() {
       setErrorMsg(error?.message || JSON.stringify(error) || "An unexpected configuration error occurred.");
     } finally {
       setLoadingTab(null);
-    }
-  };
-
-  const handleVisualize = async (index: number) => {
-    const rec = colorResults[index];
-    if (!uploadedPhoto || !rec?.color) return;
-    setVisualizingIndex(index);
-    setVisualizeError(null);
-    try {
-      const result = await visualizeRoom({
-        data: {
-          imageBase64: uploadedPhoto.base64,
-          mimeType: uploadedPhoto.mime,
-          colorHex: rec.color.hex,
-          colorName: rec.color.name,
-          surface: "wall",
-        },
-      });
-      setVisualizedImages((prev) => ({ ...prev, [index]: result.imageDataUrl }));
-    } catch (error: any) {
-      setVisualizeError(error?.message || "Could not generate the visualization.");
-    } finally {
-      setVisualizingIndex(null);
     }
   };
 
@@ -252,7 +229,6 @@ function AiDesignToolsPage() {
           {colorResults.length > 0 && (
             <Card className="p-4 space-y-3">
               <h3 className="font-semibold text-sm">Recommended Colors</h3>
-              {visualizeError && <p className="text-xs text-red-600">{visualizeError}</p>}
               <div className="space-y-2">
                 {colorResults.map((rec: any, i: number) => (
                   <div key={i} className="flex flex-col p-3 border rounded-md bg-muted/20 gap-2">
@@ -273,29 +249,6 @@ function AiDesignToolsPage() {
                       <p><strong className="text-foreground">Finish:</strong> {rec.finish || "Satin"}</p>
                       <p className="mt-1">{rec.reason || ""}</p>
                     </div>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="w-full"
-                      disabled={visualizingIndex !== null}
-                      onClick={() => handleVisualize(i)}
-                    >
-                      {visualizingIndex === i ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <>
-                          <Wand2 className="mr-2 h-4 w-4" />
-                          {visualizedImages[i] ? "Regenerate visualization" : "Visualize this color on my photo"}
-                        </>
-                      )}
-                    </Button>
-                    {visualizedImages[i] && (
-                      <img
-                        src={visualizedImages[i]}
-                        alt={`Room repainted in ${rec.color?.name}`}
-                        className="w-full rounded-md border mt-1"
-                      />
-                    )}
                   </div>
                 ))}
               </div>

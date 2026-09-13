@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useParams, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useParams } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
@@ -9,12 +9,9 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { ArrowLeft, Loader2, Trash2, Calculator, Plus, Search, Package, FileDown, Truck } from "lucide-react";
+import { ArrowLeft, Loader2, Trash2, Calculator, Plus, Search, Package, FileDown } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import { placeOrder } from "@/lib/orders.functions";
 
 export const Route = createFileRoute("/pro-hub/projects/$projectId")({
   component: ProjectDetail,
@@ -57,7 +54,6 @@ const unitPrice = (p: ProductLite | null, isContractor: boolean): number => {
 
 function ProjectDetail() {
   const { projectId } = useParams({ from: "/pro-hub/projects/$projectId" });
-  const navigate = useNavigate();
   const { user, role } = useAuth();
   const isContractor = role === "contractor" || role === "admin";
   const [project, setProject] = useState<Project | null>(null);
@@ -65,15 +61,6 @@ function ProjectDetail() {
   const [items, setItems] = useState<ProjectItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [orderOpen, setOrderOpen] = useState(false);
-  const [orderSubmitting, setOrderSubmitting] = useState(false);
-  const [orderDelivery, setOrderDelivery] = useState<"nassau" | "mailboat" | "pickup">("pickup");
-  const [orderAddress, setOrderAddress] = useState("");
-  const [orderPayment, setOrderPayment] = useState<"bank_transfer" | "cod" | "net30">("bank_transfer");
-  const [orderContact, setOrderContact] = useState(user?.user_metadata?.full_name ?? "");
-  const [orderCompany, setOrderCompany] = useState(user?.user_metadata?.company_name ?? "");
-  const [orderPhone, setOrderPhone] = useState(user?.user_metadata?.phone ?? "");
-  const [orderNotes, setOrderNotes] = useState("");
 
   // Product search state
   const [search, setSearch] = useState("");
@@ -213,48 +200,6 @@ function ProjectDetail() {
     setItems((xs) => xs.map((i) => (i.id === id ? { ...i, quantity: q } : i)));
     const { error } = await supabase.from("project_items").update({ quantity: q }).eq("id", id);
     if (error) toast.error(error.message);
-  };
-
-  const sendToSunburst = async () => {
-    if (!project) return;
-    const orderableItems = items.filter((it) => it.products);
-    if (orderableItems.length === 0) {
-      toast.error("Add at least one Sunburst product to this quote before sending an order.");
-      return;
-    }
-    if (!orderContact.trim() || !orderCompany.trim() || !orderPhone.trim()) {
-      toast.error("Contact name, company, and phone are required.");
-      return;
-    }
-    if (orderDelivery !== "pickup" && !orderAddress.trim()) {
-      toast.error("Delivery address is required for delivery or mailboat.");
-      return;
-    }
-    setOrderSubmitting(true);
-    try {
-      const res = await placeOrder({
-        data: {
-          user_id: user?.id ?? null,
-          contact_name: orderContact.trim(),
-          company: orderCompany.trim(),
-          phone: orderPhone.trim(),
-          email: user?.email ?? "",
-          delivery_method: orderDelivery,
-          delivery_address: orderDelivery === "pickup" ? "" : orderAddress.trim(),
-          payment_method: orderPayment,
-          notes: `Project: ${project.name}${project.client_name ? ` (client: ${project.client_name})` : ""}${orderNotes.trim() ? ` — ${orderNotes.trim()}` : ""}`,
-          items: orderableItems.map((it) => ({ product_id: it.product_id, quantity: it.quantity })),
-        },
-      });
-      await supabase.from("projects").update({ status: "ordered" }).eq("id", project.id);
-      toast.success(`Order ${res.order_number} sent to Sunburst.`);
-      setOrderOpen(false);
-      navigate({ to: "/order-confirmation/$orderId", params: { orderId: res.order_id } });
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Failed to send order");
-    } finally {
-      setOrderSubmitting(false);
-    }
   };
 
   const removeItem = async (id: string) => {
@@ -549,101 +494,15 @@ function ProjectDetail() {
         )}
 
         <div className="mt-4 flex flex-wrap items-end justify-between gap-4">
-          <div className="flex flex-wrap gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={generateQuotePDF}
-              disabled={items.length === 0 && colors.length === 0}
-            >
-              <FileDown className="mr-2 h-4 w-4" />
-              Download Quote PDF
-            </Button>
-            <Dialog open={orderOpen} onOpenChange={setOrderOpen}>
-              <DialogTrigger asChild>
-                <Button size="sm" className="bg-accent text-accent-foreground hover:bg-accent/90" disabled={items.length === 0}>
-                  <Truck className="mr-2 h-4 w-4" />
-                  Send to Sunburst
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-h-[85vh] max-w-lg overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle>Send order to Sunburst</DialogTitle>
-                </DialogHeader>
-                <p className="text-xs text-muted-foreground">
-                  Only Sunburst products in this quote are included — paint colors here are for planning and aren't order line items yet.
-                </p>
-                <div className="grid gap-3">
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <div>
-                      <Label>Contact name *</Label>
-                      <Input value={orderContact} onChange={(e) => setOrderContact(e.target.value)} />
-                    </div>
-                    <div>
-                      <Label>Company *</Label>
-                      <Input value={orderCompany} onChange={(e) => setOrderCompany(e.target.value)} />
-                    </div>
-                    <div>
-                      <Label>Phone *</Label>
-                      <Input value={orderPhone} onChange={(e) => setOrderPhone(e.target.value)} />
-                    </div>
-                    <div>
-                      <Label>Email</Label>
-                      <Input value={user?.email ?? ""} readOnly className="bg-muted" />
-                    </div>
-                  </div>
-
-                  <div>
-                    <Label>Delivery</Label>
-                    <RadioGroup value={orderDelivery} onValueChange={(v) => setOrderDelivery(v as typeof orderDelivery)} className="mt-2 grid gap-2">
-                      <label className="flex cursor-pointer items-center gap-2 rounded border border-border p-2 hover:bg-secondary">
-                        <RadioGroupItem value="pickup" /> <span>Pickup at Nassau Warehouse</span>
-                      </label>
-                      <label className="flex cursor-pointer items-center gap-2 rounded border border-border p-2 hover:bg-secondary">
-                        <RadioGroupItem value="nassau" /> <span>Nassau Job Site Delivery</span>
-                      </label>
-                      <label className="flex cursor-pointer items-center gap-2 rounded border border-border p-2 hover:bg-secondary">
-                        <RadioGroupItem value="mailboat" /> <span>Mailboat (Family Islands)</span>
-                      </label>
-                    </RadioGroup>
-                    {orderDelivery !== "pickup" && (
-                      <Textarea
-                        className="mt-2"
-                        placeholder="Delivery address or mailboat dock *"
-                        value={orderAddress}
-                        onChange={(e) => setOrderAddress(e.target.value)}
-                        rows={2}
-                      />
-                    )}
-                  </div>
-
-                  <div>
-                    <Label>Payment</Label>
-                    <RadioGroup value={orderPayment} onValueChange={(v) => setOrderPayment(v as typeof orderPayment)} className="mt-2 grid gap-2">
-                      <label className="flex cursor-pointer items-center gap-2 rounded border border-border p-2 hover:bg-secondary">
-                        <RadioGroupItem value="bank_transfer" /> <span>Bank Transfer</span>
-                      </label>
-                      <label className="flex cursor-pointer items-center gap-2 rounded border border-border p-2 hover:bg-secondary">
-                        <RadioGroupItem value="cod" /> <span>Cash on Delivery</span>
-                      </label>
-                      <label className={`flex items-center gap-2 rounded border border-border p-2 ${isContractor ? "cursor-pointer hover:bg-secondary" : "opacity-50"}`}>
-                        <RadioGroupItem value="net30" disabled={!isContractor} /> <span>Net-30 {isContractor ? "" : "(contractors only)"}</span>
-                      </label>
-                    </RadioGroup>
-                  </div>
-
-                  <div>
-                    <Label>Notes (optional)</Label>
-                    <Textarea value={orderNotes} onChange={(e) => setOrderNotes(e.target.value)} rows={2} placeholder="Gate code, site contact, etc." />
-                  </div>
-
-                  <Button onClick={sendToSunburst} disabled={orderSubmitting} className="w-full bg-accent text-accent-foreground hover:bg-accent/90">
-                    {orderSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : `Submit Order — $${quoteTotals.total.toFixed(2)}`}
-                  </Button>
-                </div>
-              </DialogContent>
-            </Dialog>
-          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={generateQuotePDF}
+            disabled={items.length === 0 && colors.length === 0}
+          >
+            <FileDown className="mr-2 h-4 w-4" />
+            Download Quote PDF
+          </Button>
           <div className="ml-auto max-w-xs space-y-1 border-t border-border pt-3 text-sm">
             <div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span>${quoteTotals.subtotal.toFixed(2)}</span></div>
             <div className="flex justify-between"><span className="text-muted-foreground">VAT (10%)</span><span>${quoteTotals.vat.toFixed(2)}</span></div>

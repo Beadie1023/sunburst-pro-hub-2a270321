@@ -120,6 +120,14 @@ function ProductsPage() {
               const outOfStock = p.status === "Out of Stock";
               return (
                 <Card key={p.id} className="flex flex-col p-4 transition-shadow hover:shadow-lg">
+                  {p.image_url && (
+                    <img
+                      src={p.image_url}
+                      alt={p.name}
+                      loading="lazy"
+                      className="mb-3 h-40 w-full rounded-md bg-secondary/40 object-contain"
+                    />
+                  )}
                   <div className="flex items-start justify-between gap-2">
                     <span className="text-xs font-semibold uppercase tracking-wide text-accent">
                       {p.category}
