@@ -25,15 +25,9 @@ interface WallSelection {
 
 const MAX_IMAGE_EDGE = 1400;
 
-// Gradient magnitude above which a pixel boundary is treated as a real
-// architectural edge (a corner, trim line, door frame) that the flood-fill
-// should never cross, regardless of the Wall range setting. Set high enough
-// to ignore soft lighting variation and shadow gradients on a wall (which
-// the adaptive-mean tolerance check below already handles) and only catch
-// sharp, real boundaries. Raise further if the fill is still leaking into
-// neighboring surfaces; lower it if it's stopping short on genuinely flat
-// walls with crisp trim lines.
-const EDGE_THRESHOLD = 120;
+// Gradient magnitude is measured once per photo (below) and later scaled by
+// the "Wall range" slider to decide what counts as a real architectural
+// edge versus ordinary shading on a wall — see buildMaskFor.
 
 /**
  * Precomputes a per-pixel edge-strength map for one photo. Blurs luminance
@@ -229,9 +223,7 @@ export function RoomVisualizer() {
     const context = source?.getContext("2d", { willReadFrequently: true });
     if (!source || !context) return new Uint8Array(0);
     const { width, height } = source;
-    const image = context.getImageData(0, 0, width, height).data;
     const startPixel = seed.y * width + seed.x;
-    const startOffset = startPixel * 4;
     const edgeMap = edgeMapRef.current;
     const selected = new Uint8Array(width * height);
     const visited = new Uint8Array(width * height);
@@ -241,37 +233,19 @@ export function RoomVisualizer() {
     queue[0] = startPixel;
     visited[startPixel] = 1;
 
-    // Running average of the region accepted so far, seeded from the tapped
-    // pixel. New pixels are compared against this MEAN rather than the
-    // original tapped pixel, so the fill can follow gradual lighting drift
-    // across a wall (soft shadows, window light, a photographed vignette)
-    // without hitting an artificial ceiling as it moves away from the exact
-    // spot that was tapped. Real boundaries — corners, trim, door frames —
-    // are still caught by the edge-map check below, independent of this.
-    let meanRed = image[startOffset];
-    let meanGreen = image[startOffset + 1];
-    let meanBlue = image[startOffset + 2];
-    let acceptedCount = 1;
+    // "Wall range" controls how strong a brightness/color change has to be
+    // before it counts as a real boundary (a corner, trim line, door frame)
+    // rather than ordinary shading, shadow, or texture across the wall.
+    // Every pixel reached without crossing one of those real boundaries is
+    // part of the same wall and gets painted — there is no separate
+    // per-pixel color-match test, since a wall's own lighting can vary far
+    // more than any fixed color tolerance could account for without either
+    // leaving gaps (contour-line artifacts) or missing genuine edges.
+    const effectiveEdgeThreshold = toleranceValue * 3.2;
 
     while (head < tail) {
       const pixel = queue[head++];
-      const offset = pixel * 4;
-      const distance = Math.sqrt(
-        (image[offset] - meanRed) ** 2 + (image[offset + 1] - meanGreen) ** 2 + (image[offset + 2] - meanBlue) ** 2,
-      );
-      // Whether THIS pixel gets painted is gated by color tolerance. Whether
-      // the fill keeps SPREADING past it is not — real photos are full of
-      // tiny per-pixel noise (grain, dust, a faint highlight) that would
-      // otherwise dead-end a branch of the search on an ordinary patch of
-      // wall. Only a genuine architectural edge (checked below, via the
-      // precomputed Sobel map) should stop the fill from continuing.
-      if (distance <= toleranceValue) {
-        selected[pixel] = 1;
-        acceptedCount += 1;
-        meanRed += (image[offset] - meanRed) / acceptedCount;
-        meanGreen += (image[offset + 1] - meanGreen) / acceptedCount;
-        meanBlue += (image[offset + 2] - meanBlue) / acceptedCount;
-      }
+      selected[pixel] = 1;
       const px = pixel % width;
       const neighbors = [pixel - width, pixel + width];
       if (px > 0) neighbors.push(pixel - 1);
@@ -281,7 +255,7 @@ export function RoomVisualizer() {
         visited[neighbor] = 1;
         if (edgeMap) {
           const crossingStrength = Math.max(edgeMap[pixel], edgeMap[neighbor]);
-          if (crossingStrength > EDGE_THRESHOLD) continue; // real boundary — do not cross
+          if (crossingStrength > effectiveEdgeThreshold) continue; // real boundary — do not cross
         }
         queue[tail++] = neighbor;
       }
