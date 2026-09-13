@@ -35,6 +35,14 @@ const MAX_IMAGE_EDGE = 1400;
 // walls with crisp trim lines.
 const EDGE_THRESHOLD = 120;
 
+// Any unpainted region fully enclosed inside a wall selection, smaller than
+// this fraction of the whole photo, is treated as a stray gap and filled
+// in rather than left as a hole. Real openings (a closet, a doorway) are
+// expected to take up noticeably more of the frame than this — raise the
+// fraction if genuine small openings are getting incorrectly painted over,
+// lower it if larger stray gaps are still surviving.
+const MAX_HOLE_FRACTION = 0.02;
+
 /**
  * Precomputes a per-pixel edge-strength map for one photo. Blurs luminance
  * slightly first (to ignore JPEG noise/grain) then runs a Sobel filter, so
@@ -99,6 +107,96 @@ function hexToRgb(hex: string) {
     16,
   );
   return { red: (value >> 16) & 255, green: (value >> 8) & 255, blue: value & 255 };
+}
+
+/**
+ * Fills small unpainted "islands" that end up fully enclosed inside a mask —
+ * a stray patch that briefly tripped the edge or tolerance check during the
+ * flood-fill and got isolated on all sides. Any unpainted region touching
+ * the photo's outer border, or larger than `maxHoleSize`, is left alone —
+ * that's a real other surface (a closet opening, a doorway), not a gap.
+ * Only small, fully-enclosed holes get folded back into the wall.
+ */
+function fillEnclosedHoles(mask: Uint8Array, width: number, height: number, maxHoleSize: number): Uint8Array {
+  const filled = new Uint8Array(mask);
+  const isOutside = new Uint8Array(width * height);
+  const queue = new Int32Array(width * height);
+  let head = 0;
+  let tail = 0;
+
+  // Seed the "outside" flood from every unpainted border pixel — anything
+  // reachable from the border without crossing painted pixels is background
+  // that legitimately touches the edge of the photo (or connects to it).
+  for (let x = 0; x < width; x += 1) {
+    for (const y of [0, height - 1]) {
+      const i = y * width + x;
+      if (!mask[i] && !isOutside[i]) {
+        isOutside[i] = 1;
+        queue[tail++] = i;
+      }
+    }
+  }
+  for (let y = 0; y < height; y += 1) {
+    for (const x of [0, width - 1]) {
+      const i = y * width + x;
+      if (!mask[i] && !isOutside[i]) {
+        isOutside[i] = 1;
+        queue[tail++] = i;
+      }
+    }
+  }
+  while (head < tail) {
+    const pixel = queue[head++];
+    const px = pixel % width;
+    const py = (pixel - px) / width;
+    const neighbors: number[] = [];
+    if (px > 0) neighbors.push(pixel - 1);
+    if (px < width - 1) neighbors.push(pixel + 1);
+    if (py > 0) neighbors.push(pixel - width);
+    if (py < height - 1) neighbors.push(pixel + width);
+    for (const neighbor of neighbors) {
+      if (!mask[neighbor] && !isOutside[neighbor]) {
+        isOutside[neighbor] = 1;
+        queue[tail++] = neighbor;
+      }
+    }
+  }
+
+  // Anything unpainted and NOT reached by that outside flood is an enclosed
+  // hole. Group each into its connected component and fill only the small
+  // ones — a real opening (closet, doorway) will be far larger.
+  const visited = new Uint8Array(width * height);
+  const componentQueue = new Int32Array(width * height);
+  for (let start = 0; start < width * height; start += 1) {
+    if (mask[start] || isOutside[start] || visited[start]) continue;
+    let componentHead = 0;
+    let componentTail = 0;
+    componentQueue[componentTail++] = start;
+    visited[start] = 1;
+    const members: number[] = [start];
+    while (componentHead < componentTail) {
+      const pixel = componentQueue[componentHead++];
+      const px = pixel % width;
+      const py = (pixel - px) / width;
+      const neighbors: number[] = [];
+      if (px > 0) neighbors.push(pixel - 1);
+      if (px < width - 1) neighbors.push(pixel + 1);
+      if (py > 0) neighbors.push(pixel - width);
+      if (py < height - 1) neighbors.push(pixel + width);
+      for (const neighbor of neighbors) {
+        if (!mask[neighbor] && !isOutside[neighbor] && !visited[neighbor]) {
+          visited[neighbor] = 1;
+          componentQueue[componentTail++] = neighbor;
+          members.push(neighbor);
+        }
+      }
+    }
+    if (members.length <= maxHoleSize) {
+      for (const member of members) filled[member] = 1;
+    }
+  }
+
+  return filled;
 }
 
 /**
@@ -313,7 +411,7 @@ export function RoomVisualizer() {
         queue[tail++] = neighbor;
       }
     }
-    return dilateMask(selected, width, height, 1);
+    return dilateMask(fillEnclosedHoles(selected, width, height, Math.round(width * height * MAX_HOLE_FRACTION)), width, height, 1);
   }, []);
 
   const loadPhoto = (event: ChangeEvent<HTMLInputElement>) => {
