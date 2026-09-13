@@ -222,10 +222,9 @@ function CatalogPage() {
                   </div>
                 </div>
 
-                <Card className="space-y-2 bg-muted/30 p-3 text-xs text-muted-foreground">
-                  <div className="font-semibold text-foreground">Room visualizer (coming soon)</div>
-                  <div>Upload a wall photo and preview this color in the space — generation engine arrives in the next release.</div>
-                </Card>
+                <Button variant="outline" asChild className="w-full">
+                  <a href="/pro-hub/ai-design-tools#visualizer">Preview this color on a wall</a>
+                </Button>
 
                 {user && projects.length > 0 ? (
                   <div className="space-y-2">

@@ -3,10 +3,13 @@ import { useState, useRef, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { recommendColors } from "@/lib/ai-advisor.functions";
+import { RoomVisualizer } from "@/components/RoomVisualizer";
 import {
   Upload,
   Loader2,
   AlertCircle,
+  Palette,
+  ScanLine,
 } from "lucide-react";
 
 export const Route = createFileRoute("/pro-hub/ai-design-tools")({
@@ -99,6 +102,9 @@ function UploadBox({ file, onFile, label = "Drop or click to upload an image", h
 }
 
 function AiDesignToolsPage() {
+  const [activeTool, setActiveTool] = useState<"match" | "visualizer">(() =>
+    typeof window !== "undefined" && window.location.hash === "#visualizer" ? "visualizer" : "match",
+  );
   const [loadingTab, setLoadingTab] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -166,10 +172,19 @@ function AiDesignToolsPage() {
     <div className="p-6 space-y-6 max-w-4xl mx-auto">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">AI Design Tools</h1>
-        <p className="text-muted-foreground">Color match, room visualization, and paint estimation.</p>
+        <p className="text-muted-foreground">Match colors and preview Sunburst paint on your client's walls.</p>
       </div>
 
-      <div className="grid md:grid-cols-2 gap-6">
+      <div className="inline-flex rounded-md border border-border bg-muted/30 p-1">
+        <Button variant={activeTool === "match" ? "default" : "ghost"} size="sm" onClick={() => { setActiveTool("match"); window.history.replaceState(null, "", window.location.pathname); }}>
+          <Palette className="mr-1.5 h-4 w-4" /> Color Match
+        </Button>
+        <Button variant={activeTool === "visualizer" ? "default" : "ghost"} size="sm" onClick={() => { setActiveTool("visualizer"); window.history.replaceState(null, "", "#visualizer"); }}>
+          <ScanLine className="mr-1.5 h-4 w-4" /> Room Visualizer
+        </Button>
+      </div>
+
+      {activeTool === "visualizer" ? <RoomVisualizer /> : <div className="grid md:grid-cols-2 gap-6">
         <Card className="p-4 space-y-4">
           <h2 className="text-lg font-semibold">Upload a photo</h2>
           <UploadBox file={matchFile} onFile={setMatchFile} />
@@ -255,7 +270,7 @@ function AiDesignToolsPage() {
             </Card>
           )}
         </div>
-      </div>
+      </div>}
     </div>
   );
 }
