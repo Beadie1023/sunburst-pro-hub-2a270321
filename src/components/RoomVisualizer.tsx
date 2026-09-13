@@ -30,55 +30,58 @@ const MAX_IMAGE_EDGE = 1400;
 // edge versus ordinary shading on a wall — see buildMaskFor.
 
 /**
- * Precomputes a per-pixel edge-strength map for one photo. Blurs luminance
- * slightly first (to ignore JPEG noise/grain) then runs a Sobel filter, so
- * only real intensity boundaries — not sensor noise — count as edges.
+ * Precomputes a per-pixel edge-strength map for one photo. Runs a Sobel
+ * filter over a slightly blurred version of each color channel separately
+ * (not just combined luminance), then keeps the strongest response at each
+ * pixel. Two surfaces can be nearly identical in brightness but clearly
+ * different in hue (a beige wall next to beige bedding, for example) — a
+ * luminance-only edge map misses that boundary entirely, which is what let
+ * the fill bleed from a wall onto the bed. Checking each channel catches it.
  */
 function computeEdgeMap(width: number, height: number, data: Uint8ClampedArray): Float32Array {
-  const luminance = new Float32Array(width * height);
-  for (let i = 0; i < width * height; i += 1) {
-    const o = i * 4;
-    luminance[i] = data[o] * 0.2126 + data[o + 1] * 0.7152 + data[o + 2] * 0.0722;
-  }
-
-  const blurred = new Float32Array(width * height);
-  for (let y = 0; y < height; y += 1) {
-    for (let x = 0; x < width; x += 1) {
-      let sum = 0;
-      let count = 0;
-      for (let dy = -1; dy <= 1; dy += 1) {
-        const ny = y + dy;
-        if (ny < 0 || ny >= height) continue;
-        for (let dx = -1; dx <= 1; dx += 1) {
-          const nx = x + dx;
-          if (nx < 0 || nx >= width) continue;
-          sum += luminance[ny * width + nx];
-          count += 1;
-        }
-      }
-      blurred[y * width + x] = sum / count;
-    }
-  }
-
+  const edges = new Float32Array(width * height);
+  const channelBlurred = new Float32Array(width * height);
   const gx = [-1, 0, 1, -2, 0, 2, -1, 0, 1];
   const gy = [-1, -2, -1, 0, 0, 0, 1, 2, 1];
-  const edges = new Float32Array(width * height);
-  for (let y = 0; y < height; y += 1) {
-    for (let x = 0; x < width; x += 1) {
-      let sx = 0;
-      let sy = 0;
-      let k = 0;
-      for (let dy = -1; dy <= 1; dy += 1) {
-        const ny = Math.min(height - 1, Math.max(0, y + dy));
-        for (let dx = -1; dx <= 1; dx += 1) {
-          const nx = Math.min(width - 1, Math.max(0, x + dx));
-          const v = blurred[ny * width + nx];
-          sx += v * gx[k];
-          sy += v * gy[k];
-          k += 1;
+
+  for (let channel = 0; channel < 3; channel += 1) {
+    for (let y = 0; y < height; y += 1) {
+      for (let x = 0; x < width; x += 1) {
+        let sum = 0;
+        let count = 0;
+        for (let dy = -1; dy <= 1; dy += 1) {
+          const ny = y + dy;
+          if (ny < 0 || ny >= height) continue;
+          for (let dx = -1; dx <= 1; dx += 1) {
+            const nx = x + dx;
+            if (nx < 0 || nx >= width) continue;
+            sum += data[(ny * width + nx) * 4 + channel];
+            count += 1;
+          }
         }
+        channelBlurred[y * width + x] = sum / count;
       }
-      edges[y * width + x] = Math.sqrt(sx * sx + sy * sy);
+    }
+
+    for (let y = 0; y < height; y += 1) {
+      for (let x = 0; x < width; x += 1) {
+        let sx = 0;
+        let sy = 0;
+        let k = 0;
+        for (let dy = -1; dy <= 1; dy += 1) {
+          const ny = Math.min(height - 1, Math.max(0, y + dy));
+          for (let dx = -1; dx <= 1; dx += 1) {
+            const nx = Math.min(width - 1, Math.max(0, x + dx));
+            const v = channelBlurred[ny * width + nx];
+            sx += v * gx[k];
+            sy += v * gy[k];
+            k += 1;
+          }
+        }
+        const magnitude = Math.sqrt(sx * sx + sy * sy);
+        const idx = y * width + x;
+        if (magnitude > edges[idx]) edges[idx] = magnitude;
+      }
     }
   }
   return edges;
