@@ -108,17 +108,26 @@ function AiDesignToolsPage() {
   const [contractorNotes, setContractorNotes] = useState("");
   const [colorResults, setColorResults] = useState<any[]>([]);
 
-  const fileToBase64 = (file: File): Promise<string> => {
+  // Downscale large photos before sending — full-size phone shots exceed the
+  // request size limit and the edge function call fails at the network level.
+  const fileToBase64 = (file: File): Promise<{ base64: string; mimeType: string }> => {
     return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = () => {
-        const base64String = reader.result as string;
-        const parts = base64String.split(",");
-        const rawBase64 = parts.length > 1 ? parts[1] : parts[0];
-        resolve(rawBase64);
+      const img = new Image();
+      img.onload = () => {
+        const MAX = 1024;
+        const scale = Math.min(1, MAX / Math.max(img.width, img.height));
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return reject(new Error("Could not process image"));
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+        resolve({ base64: dataUrl.split(",")[1], mimeType: "image/jpeg" });
+        URL.revokeObjectURL(img.src);
       };
-      reader.onerror = (error) => reject(error);
+      img.onerror = () => reject(new Error("Could not read image file"));
+      img.src = URL.createObjectURL(file);
     });
   };
 
