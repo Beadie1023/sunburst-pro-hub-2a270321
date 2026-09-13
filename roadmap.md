@@ -1,7 +1,7 @@
 # Roadmap
 
-- [x] Add image_url column to products + storage RLS for product-images
-- [x] Upload product photos (public bucket blocked — using CDN asset URLs instead)
-- [x] Set image_url on matching products
-- [ ] Display image_url on product list (and admin product table)
-- [ ] Fix AI Design Tools: "Failed to send a request to the Edge Function" (recommend-colors)
+- [x] Add image_url column to products + admin policies
+- [x] Upload product photos (public bucket blocked by workspace policy — used CDN asset URLs instead)
+- [x] Set image_url on matching products (painter's tape, caulk single/case, spackling, contact cement, 4" brush, sandpaper)
+- [x] Display image_url on product cards and admin product table
+- [x] Fix AI Design Tools edge function failure (client now downscales photos to 1024px JPEG before sending; function verified working)
