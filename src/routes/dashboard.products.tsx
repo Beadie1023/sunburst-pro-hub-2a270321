@@ -46,6 +46,7 @@ interface Product {
   stock_quantity: number;
   status: string;
   price: number | null;
+  image_url: string | null;
 }
 
 function AdminProductsPage() {
