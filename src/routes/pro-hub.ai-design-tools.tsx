@@ -2,11 +2,12 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState, useRef, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { recommendColors } from "@/lib/ai-advisor.functions";
+import { recommendColors, visualizeRoom } from "@/lib/ai-advisor.functions";
 import {
   Upload,
   Loader2,
   AlertCircle,
+  Wand2,
 } from "lucide-react";
 
 export const Route = createFileRoute("/pro-hub/ai-design-tools")({
@@ -107,6 +108,10 @@ function AiDesignToolsPage() {
   const [stylePreference, setStylePreference] = useState("Minimalist");
   const [contractorNotes, setContractorNotes] = useState("");
   const [colorResults, setColorResults] = useState<any[]>([]);
+  const [uploadedPhoto, setUploadedPhoto] = useState<{ base64: string; mime: string } | null>(null);
+  const [visualizingIndex, setVisualizingIndex] = useState<number | null>(null);
+  const [visualizedImages, setVisualizedImages] = useState<Record<number, string>>({});
+  const [visualizeError, setVisualizeError] = useState<string | null>(null);
 
   const fileToBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -131,6 +136,9 @@ function AiDesignToolsPage() {
     try {
       const base64Data = await fileToBase64(matchFile);
       const fileMime = matchFile.type || "image/jpeg";
+      setUploadedPhoto({ base64: base64Data, mime: fileMime });
+      setVisualizedImages({});
+      setVisualizeError(null);
 
       // FIXED STRUCTURE: Matched perfectly with the backend Zod validation keys
       const response = await recommendColors({
@@ -151,6 +159,29 @@ function AiDesignToolsPage() {
       setErrorMsg(error?.message || JSON.stringify(error) || "An unexpected configuration error occurred.");
     } finally {
       setLoadingTab(null);
+    }
+  };
+
+  const handleVisualize = async (index: number) => {
+    const rec = colorResults[index];
+    if (!uploadedPhoto || !rec?.color) return;
+    setVisualizingIndex(index);
+    setVisualizeError(null);
+    try {
+      const result = await visualizeRoom({
+        data: {
+          imageBase64: uploadedPhoto.base64,
+          mimeType: uploadedPhoto.mime,
+          colorHex: rec.color.hex,
+          colorName: rec.color.name,
+          surface: "wall",
+        },
+      });
+      setVisualizedImages((prev) => ({ ...prev, [index]: result.imageDataUrl }));
+    } catch (error: any) {
+      setVisualizeError(error?.message || "Could not generate the visualization.");
+    } finally {
+      setVisualizingIndex(null);
     }
   };
 
@@ -221,6 +252,7 @@ function AiDesignToolsPage() {
           {colorResults.length > 0 && (
             <Card className="p-4 space-y-3">
               <h3 className="font-semibold text-sm">Recommended Colors</h3>
+              {visualizeError && <p className="text-xs text-red-600">{visualizeError}</p>}
               <div className="space-y-2">
                 {colorResults.map((rec: any, i: number) => (
                   <div key={i} className="flex flex-col p-3 border rounded-md bg-muted/20 gap-2">
@@ -241,6 +273,29 @@ function AiDesignToolsPage() {
                       <p><strong className="text-foreground">Finish:</strong> {rec.finish || "Satin"}</p>
                       <p className="mt-1">{rec.reason || ""}</p>
                     </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="w-full"
+                      disabled={visualizingIndex !== null}
+                      onClick={() => handleVisualize(i)}
+                    >
+                      {visualizingIndex === i ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <>
+                          <Wand2 className="mr-2 h-4 w-4" />
+                          {visualizedImages[i] ? "Regenerate visualization" : "Visualize this color on my photo"}
+                        </>
+                      )}
+                    </Button>
+                    {visualizedImages[i] && (
+                      <img
+                        src={visualizedImages[i]}
+                        alt={`Room repainted in ${rec.color?.name}`}
+                        className="w-full rounded-md border mt-1"
+                      />
+                    )}
                   </div>
                 ))}
               </div>
