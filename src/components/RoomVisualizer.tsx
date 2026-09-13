@@ -102,6 +102,35 @@ function hexToRgb(hex: string) {
 }
 
 /**
+ * Grows a mask outward by `passes` pixels. Closes hairline gaps that can
+ * otherwise be left between two adjacent wall selections (or between a
+ * selection and a real edge it correctly stopped at), which would
+ * otherwise show up as a thin unpainted sliver of the original photo.
+ */
+function dilateMask(mask: Uint8Array, width: number, height: number, passes: number): Uint8Array {
+  let current = mask;
+  for (let pass = 0; pass < passes; pass += 1) {
+    const next = new Uint8Array(current.length);
+    for (let y = 0; y < height; y += 1) {
+      for (let x = 0; x < width; x += 1) {
+        const i = y * width + x;
+        if (current[i]) {
+          next[i] = 1;
+          continue;
+        }
+        const left = x > 0 && current[i - 1];
+        const right = x < width - 1 && current[i + 1];
+        const up = y > 0 && current[i - width];
+        const down = y < height - 1 && current[i + width];
+        if (left || right || up || down) next[i] = 1;
+      }
+    }
+    current = next;
+  }
+  return current;
+}
+
+/**
  * Room Visualizer
  *
  * Everything here runs on-device: the photo is decoded straight into a
@@ -211,12 +240,17 @@ export function RoomVisualizer() {
         const luminance =
           (image.data[offset] * 0.2126 + image.data[offset + 1] * 0.7152 + image.data[offset + 2] * 0.0722) / 255;
         const light = 0.35 + luminance * 0.9;
-        const targetRed = Math.min(255, paint.red * light);
-        const targetGreen = Math.min(255, paint.green * light);
-        const targetBlue = Math.min(255, paint.blue * light);
-        image.data[offset] = image.data[offset] * (1 - amount) + targetRed * amount;
-        image.data[offset + 1] = image.data[offset + 1] * (1 - amount) + targetGreen * amount;
-        image.data[offset + 2] = image.data[offset + 2] * (1 - amount) + targetBlue * amount;
+        const shadedRed = Math.min(255, paint.red * light);
+        const shadedGreen = Math.min(255, paint.green * light);
+        const shadedBlue = Math.min(255, paint.blue * light);
+        // "Paint strength" blends between a flat, unshaded coat of the new
+        // color and a fully light/shadow-shaded coat of it — never back
+        // toward the wall's OLD color. This guarantees the new color always
+        // fully replaces the old one; a lower strength just looks like a
+        // flatter coat, not a wash of the previous paint showing through.
+        image.data[offset] = paint.red * (1 - amount) + shadedRed * amount;
+        image.data[offset + 1] = paint.green * (1 - amount) + shadedGreen * amount;
+        image.data[offset + 2] = paint.blue * (1 - amount) + shadedBlue * amount;
       }
     }
     previewContext.putImageData(image, 0, 0);
@@ -279,7 +313,7 @@ export function RoomVisualizer() {
         queue[tail++] = neighbor;
       }
     }
-    return selected;
+    return dilateMask(selected, width, height, 1);
   }, []);
 
   const loadPhoto = (event: ChangeEvent<HTMLInputElement>) => {
