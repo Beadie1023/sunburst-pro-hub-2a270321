@@ -259,12 +259,19 @@ export function RoomVisualizer() {
       const distance = Math.sqrt(
         (image[offset] - meanRed) ** 2 + (image[offset + 1] - meanGreen) ** 2 + (image[offset + 2] - meanBlue) ** 2,
       );
-      if (distance > toleranceValue) continue;
-      selected[pixel] = 1;
-      acceptedCount += 1;
-      meanRed += (image[offset] - meanRed) / acceptedCount;
-      meanGreen += (image[offset + 1] - meanGreen) / acceptedCount;
-      meanBlue += (image[offset + 2] - meanBlue) / acceptedCount;
+      // Whether THIS pixel gets painted is gated by color tolerance. Whether
+      // the fill keeps SPREADING past it is not — real photos are full of
+      // tiny per-pixel noise (grain, dust, a faint highlight) that would
+      // otherwise dead-end a branch of the search on an ordinary patch of
+      // wall. Only a genuine architectural edge (checked below, via the
+      // precomputed Sobel map) should stop the fill from continuing.
+      if (distance <= toleranceValue) {
+        selected[pixel] = 1;
+        acceptedCount += 1;
+        meanRed += (image[offset] - meanRed) / acceptedCount;
+        meanGreen += (image[offset + 1] - meanGreen) / acceptedCount;
+        meanBlue += (image[offset + 2] - meanBlue) / acceptedCount;
+      }
       const px = pixel % width;
       const neighbors = [pixel - width, pixel + width];
       if (px > 0) neighbors.push(pixel - 1);
