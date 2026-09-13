@@ -27,11 +27,13 @@ const MAX_IMAGE_EDGE = 1400;
 
 // Gradient magnitude above which a pixel boundary is treated as a real
 // architectural edge (a corner, trim line, door frame) that the flood-fill
-// should never cross, regardless of the Wall range setting. Tuned for
-// typical phone photos after a light denoise blur — raise this if the fill
-// is stopping too early on textured walls, lower it if it's leaking past
-// faint boundaries on flat, evenly-lit walls.
-const EDGE_THRESHOLD = 70;
+// should never cross, regardless of the Wall range setting. Set high enough
+// to ignore soft lighting variation and shadow gradients on a wall (which
+// the adaptive-mean tolerance check below already handles) and only catch
+// sharp, real boundaries. Raise further if the fill is still leaking into
+// neighboring surfaces; lower it if it's stopping short on genuinely flat
+// walls with crisp trim lines.
+const EDGE_THRESHOLD = 120;
 
 /**
  * Precomputes a per-pixel edge-strength map for one photo. Blurs luminance
@@ -230,7 +232,6 @@ export function RoomVisualizer() {
     const image = context.getImageData(0, 0, width, height).data;
     const startPixel = seed.y * width + seed.x;
     const startOffset = startPixel * 4;
-    const target = [image[startOffset], image[startOffset + 1], image[startOffset + 2]];
     const edgeMap = edgeMapRef.current;
     const selected = new Uint8Array(width * height);
     const visited = new Uint8Array(width * height);
@@ -240,19 +241,30 @@ export function RoomVisualizer() {
     queue[0] = startPixel;
     visited[startPixel] = 1;
 
-    // Bounded flood-fill: spreads to neighboring pixels within `tolerance`
-    // color distance of the tapped point (so it settles into one wall's
-    // overall color range), but is also stopped at any pixel-to-pixel step
-    // that crosses a real edge in the photo — a corner, trim line, or door
-    // frame — even if both sides happen to be close in raw color.
+    // Running average of the region accepted so far, seeded from the tapped
+    // pixel. New pixels are compared against this MEAN rather than the
+    // original tapped pixel, so the fill can follow gradual lighting drift
+    // across a wall (soft shadows, window light, a photographed vignette)
+    // without hitting an artificial ceiling as it moves away from the exact
+    // spot that was tapped. Real boundaries — corners, trim, door frames —
+    // are still caught by the edge-map check below, independent of this.
+    let meanRed = image[startOffset];
+    let meanGreen = image[startOffset + 1];
+    let meanBlue = image[startOffset + 2];
+    let acceptedCount = 1;
+
     while (head < tail) {
       const pixel = queue[head++];
       const offset = pixel * 4;
       const distance = Math.sqrt(
-        (image[offset] - target[0]) ** 2 + (image[offset + 1] - target[1]) ** 2 + (image[offset + 2] - target[2]) ** 2,
+        (image[offset] - meanRed) ** 2 + (image[offset + 1] - meanGreen) ** 2 + (image[offset + 2] - meanBlue) ** 2,
       );
       if (distance > toleranceValue) continue;
       selected[pixel] = 1;
+      acceptedCount += 1;
+      meanRed += (image[offset] - meanRed) / acceptedCount;
+      meanGreen += (image[offset + 1] - meanGreen) / acceptedCount;
+      meanBlue += (image[offset + 2] - meanBlue) / acceptedCount;
       const px = pixel % width;
       const neighbors = [pixel - width, pixel + width];
       if (px > 0) neighbors.push(pixel - 1);
