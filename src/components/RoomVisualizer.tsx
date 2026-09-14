@@ -50,8 +50,9 @@ function refineMask(selection: Uint8Array, width: number, height: number) {
     return output;
   };
 
-  // Closing (dilate then erode) fills holes without growing the wall outline.
-  const closed = morph(morph(selection, true, 2), false, 2);
+  // Closing (dilate then erode) fills tiny texture holes without letting the
+  // mask bridge thin boundaries like trim or door frames.
+  const closed = morph(morph(selection, true, 1), false, 1);
 
   // Box blur into 0-255 weights for a soft edge.
   const feathered = new Uint8ClampedArray(closed.length);
@@ -77,7 +78,7 @@ export function RoomVisualizer() {
   const [photoLoaded, setPhotoLoaded] = useState(false);
   const [selectedColor, setSelectedColor] = useState<VisualizerColor | null>(null);
   const [search, setSearch] = useState("");
-  const [tolerance, setTolerance] = useState(38);
+  const [tolerance, setTolerance] = useState(28);
   const [strength, setStrength] = useState(72);
   const [seed, setSeed] = useState<{ x: number; y: number } | null>(null);
   const [mask, setMask] = useState<Uint8ClampedArray | null>(null);
@@ -161,8 +162,19 @@ export function RoomVisualizer() {
     // Hue signature of the wall, independent of how brightly it is lit.
     const targetRedGreen = targetRed - targetGreen;
     const targetGreenBlue = targetGreen - targetBlue;
-    const chromaLimit = Math.max(10, tolerance * 0.6);
-    const luminanceLimit = tolerance * 2.4;
+    const chromaLimit = Math.max(8, tolerance * 0.45);
+    const luminanceLimit = tolerance * 1.8;
+    // Sharp boundary detector: walls change brightness gradually, while door
+    // frames, trim, furniture edges and pictures change color in a single step.
+    // The fill refuses to cross any edge stronger than this, so paint stays on
+    // the tapped wall only.
+    const edgeLimit = Math.max(18, tolerance * 1.2);
+    const pixelDistance = (from: number, to: number) => {
+      const redDiff = image[from] - image[to];
+      const greenDiff = image[from + 1] - image[to + 1];
+      const blueDiff = image[from + 2] - image[to + 2];
+      return Math.abs(redDiff) + Math.abs(greenDiff) + Math.abs(blueDiff);
+    };
 
     const selected = new Uint8Array(width * height);
     const visited = new Uint8Array(width * height);
@@ -188,10 +200,11 @@ export function RoomVisualizer() {
       if (px > 0) neighbors.push(pixel - 1);
       if (px < width - 1) neighbors.push(pixel + 1);
       for (const neighbor of neighbors) {
-        if (neighbor >= 0 && neighbor < visited.length && !visited[neighbor]) {
-          visited[neighbor] = 1;
-          queue[tail++] = neighbor;
-        }
+        if (neighbor < 0 || neighbor >= visited.length || visited[neighbor]) continue;
+        // Do not step across a hard edge — that is a different surface.
+        if (pixelDistance(offset, neighbor * 4) > edgeLimit) continue;
+        visited[neighbor] = 1;
+        queue[tail++] = neighbor;
       }
     }
     setMask(refineMask(selected, width, height));
