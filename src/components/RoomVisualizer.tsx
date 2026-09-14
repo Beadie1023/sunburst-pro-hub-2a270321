@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type MouseEvent } from "react";
-import { Download, Eye, EyeOff, ImagePlus, Loader2, RotateCcw, X } from "lucide-react";
+import { Download, Eye, EyeOff, ImagePlus, Loader2, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -14,85 +14,66 @@ interface PaintColor {
   collection: string;
 }
 
-interface WallSelection {
+interface WallPatch {
   id: string;
   seed: { x: number; y: number };
-  tolerance: number;
-  strength: number;
   mask: Uint8Array;
-  color: PaintColor;
 }
 
 const MAX_IMAGE_EDGE = 1400;
 
-// Gradient magnitude above which a pixel boundary is treated as a real
-// architectural edge (a corner, trim line, door frame) that the flood-fill
-// should never cross, regardless of the Wall range setting. Set high enough
-// to ignore soft lighting variation and shadow gradients on a wall (which
-// the adaptive-mean tolerance check below already handles) and only catch
-// sharp, real boundaries. Raise further if the fill is still leaking into
-// neighboring surfaces; lower it if it's stopping short on genuinely flat
-// walls with crisp trim lines.
-const EDGE_THRESHOLD = 120;
-
-// Any unpainted connected patch smaller than this fraction of the whole
-// photo is treated as a stray gap and filled in, regardless of whether it
-// happens to touch the photo's outer border. Real openings (a closet, a
-// doorway) are expected to take up noticeably more of the frame than
-// this — raise the fraction if genuine small openings are getting
-// incorrectly painted over, lower it if larger stray gaps still survive.
-const MAX_HOLE_FRACTION = 0.04;
-
 /**
- * Precomputes a per-pixel edge-strength map for one photo. Blurs luminance
- * slightly first (to ignore JPEG noise/grain) then runs a Sobel filter, so
- * only real intensity boundaries — not sensor noise — count as edges.
+ * Precomputes a per-pixel edge-strength map for one photo. Runs a Sobel
+ * filter over a slightly blurred version of each color channel separately
+ * (not just combined luminance), then keeps the strongest response at each
+ * pixel. Two surfaces can be nearly identical in brightness but clearly
+ * different in hue (a beige wall next to beige bedding, for example) — a
+ * luminance-only edge map misses that boundary entirely.
  */
 function computeEdgeMap(width: number, height: number, data: Uint8ClampedArray): Float32Array {
-  const luminance = new Float32Array(width * height);
-  for (let i = 0; i < width * height; i += 1) {
-    const o = i * 4;
-    luminance[i] = data[o] * 0.2126 + data[o + 1] * 0.7152 + data[o + 2] * 0.0722;
-  }
-
-  const blurred = new Float32Array(width * height);
-  for (let y = 0; y < height; y += 1) {
-    for (let x = 0; x < width; x += 1) {
-      let sum = 0;
-      let count = 0;
-      for (let dy = -1; dy <= 1; dy += 1) {
-        const ny = y + dy;
-        if (ny < 0 || ny >= height) continue;
-        for (let dx = -1; dx <= 1; dx += 1) {
-          const nx = x + dx;
-          if (nx < 0 || nx >= width) continue;
-          sum += luminance[ny * width + nx];
-          count += 1;
-        }
-      }
-      blurred[y * width + x] = sum / count;
-    }
-  }
-
+  const edges = new Float32Array(width * height);
+  const channelBlurred = new Float32Array(width * height);
   const gx = [-1, 0, 1, -2, 0, 2, -1, 0, 1];
   const gy = [-1, -2, -1, 0, 0, 0, 1, 2, 1];
-  const edges = new Float32Array(width * height);
-  for (let y = 0; y < height; y += 1) {
-    for (let x = 0; x < width; x += 1) {
-      let sx = 0;
-      let sy = 0;
-      let k = 0;
-      for (let dy = -1; dy <= 1; dy += 1) {
-        const ny = Math.min(height - 1, Math.max(0, y + dy));
-        for (let dx = -1; dx <= 1; dx += 1) {
-          const nx = Math.min(width - 1, Math.max(0, x + dx));
-          const v = blurred[ny * width + nx];
-          sx += v * gx[k];
-          sy += v * gy[k];
-          k += 1;
+
+  for (let channel = 0; channel < 3; channel += 1) {
+    for (let y = 0; y < height; y += 1) {
+      for (let x = 0; x < width; x += 1) {
+        let sum = 0;
+        let count = 0;
+        for (let dy = -1; dy <= 1; dy += 1) {
+          const ny = y + dy;
+          if (ny < 0 || ny >= height) continue;
+          for (let dx = -1; dx <= 1; dx += 1) {
+            const nx = x + dx;
+            if (nx < 0 || nx >= width) continue;
+            sum += data[(ny * width + nx) * 4 + channel];
+            count += 1;
+          }
         }
+        channelBlurred[y * width + x] = sum / count;
       }
-      edges[y * width + x] = Math.sqrt(sx * sx + sy * sy);
+    }
+
+    for (let y = 0; y < height; y += 1) {
+      for (let x = 0; x < width; x += 1) {
+        let sx = 0;
+        let sy = 0;
+        let k = 0;
+        for (let dy = -1; dy <= 1; dy += 1) {
+          const ny = Math.min(height - 1, Math.max(0, y + dy));
+          for (let dx = -1; dx <= 1; dx += 1) {
+            const nx = Math.min(width - 1, Math.max(0, x + dx));
+            const v = channelBlurred[ny * width + nx];
+            sx += v * gx[k];
+            sy += v * gy[k];
+            k += 1;
+          }
+        }
+        const magnitude = Math.sqrt(sx * sx + sy * sy);
+        const idx = y * width + x;
+        if (magnitude > edges[idx]) edges[idx] = magnitude;
+      }
     }
   }
   return edges;
@@ -110,96 +91,21 @@ function hexToRgb(hex: string) {
 }
 
 /**
- * Fills small unpainted "islands" left behind inside a wall selection — a
- * stray patch that briefly tripped the edge or tolerance check during the
- * flood-fill. Classifies purely by connected-component SIZE rather than
- * whether the patch touches the photo's outer border: a real opening (a
- * closet, a doorway) is always far larger than `maxHoleSize`, even if it
- * happens to sit near an edge of the frame, whereas these stray gaps stay
- * small even when a thin sliver happens to reach the border.
- */
-function fillSmallGaps(mask: Uint8Array, width: number, height: number, maxHoleSize: number): Uint8Array {
-  const filled = new Uint8Array(mask);
-  const visited = new Uint8Array(width * height);
-  const componentQueue = new Int32Array(width * height);
-
-  for (let start = 0; start < width * height; start += 1) {
-    if (mask[start] || visited[start]) continue;
-    let componentHead = 0;
-    let componentTail = 0;
-    componentQueue[componentTail++] = start;
-    visited[start] = 1;
-    const members: number[] = [start];
-    while (componentHead < componentTail) {
-      const pixel = componentQueue[componentHead++];
-      const px = pixel % width;
-      const py = (pixel - px) / width;
-      const neighbors: number[] = [];
-      if (px > 0) neighbors.push(pixel - 1);
-      if (px < width - 1) neighbors.push(pixel + 1);
-      if (py > 0) neighbors.push(pixel - width);
-      if (py < height - 1) neighbors.push(pixel + width);
-      for (const neighbor of neighbors) {
-        if (!mask[neighbor] && !visited[neighbor]) {
-          visited[neighbor] = 1;
-          componentQueue[componentTail++] = neighbor;
-          members.push(neighbor);
-        }
-      }
-    }
-    if (members.length <= maxHoleSize) {
-      for (const member of members) filled[member] = 1;
-    }
-  }
-
-  return filled;
-}
-
-/**
- * Grows a mask outward by `passes` pixels. Closes hairline gaps that can
- * otherwise be left between two adjacent wall selections (or between a
- * selection and a real edge it correctly stopped at), which would
- * otherwise show up as a thin unpainted sliver of the original photo.
- */
-function dilateMask(mask: Uint8Array, width: number, height: number, passes: number): Uint8Array {
-  let current = mask;
-  for (let pass = 0; pass < passes; pass += 1) {
-    const next = new Uint8Array(current.length);
-    for (let y = 0; y < height; y += 1) {
-      for (let x = 0; x < width; x += 1) {
-        const i = y * width + x;
-        if (current[i]) {
-          next[i] = 1;
-          continue;
-        }
-        const left = x > 0 && current[i - 1];
-        const right = x < width - 1 && current[i + 1];
-        const up = y > 0 && current[i - width];
-        const down = y < height - 1 && current[i + width];
-        if (left || right || up || down) next[i] = 1;
-      }
-    }
-    current = next;
-  }
-  return current;
-}
-
-/**
  * Room Visualizer
  *
  * Everything here runs on-device: the photo is decoded straight into a
- * <canvas>, each wall's mask is built with a bounded flood-fill over the
- * pixel buffer, and its paint color is blended in using the pixel's own
+ * <canvas>, wall patches are built with a bounded flood-fill over the pixel
+ * buffer, and the paint color is blended in using each pixel's own
  * luminance so shadows/highlights/texture survive. The photo is never sent
- * anywhere — there is no network call in this component. The only server
- * round-trip in AI Design Tools remains the separate Color Match flow
- * (recommend-colors).
+ * anywhere. The only server round-trip in AI Design Tools remains the
+ * separate Color Match flow (recommend-colors).
  *
- * Multiple walls: tapping an unselected area starts a new wall selection
- * with whichever catalog color is currently highlighted; tapping inside an
- * existing selection makes it active again so its color/tolerance/strength
- * can be edited. Selections are tracked in a list rather than a single mask
- * so several walls can carry different colors at once.
+ * One color for the whole room: tapping an unpainted spot adds that
+ * connected surface to the set of "wall" patches; tapping an already-
+ * painted patch removes just that patch. Every patch always shares the
+ * same currently-selected color, tolerance, and strength — there is no
+ * per-wall color anymore, since the goal is a single repaint of the room,
+ * not comparing colors wall-to-wall.
  */
 export function RoomVisualizer() {
   const sourceCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -211,17 +117,13 @@ export function RoomVisualizer() {
 
   const [colors, setColors] = useState<PaintColor[]>([]);
   const [colorsLoading, setColorsLoading] = useState(true);
-  // The color that will be used for the NEXT new wall tapped, when nothing
-  // is currently active. Once a wall is active, picking a color edits that
-  // wall instead (see chooseColor).
-  const [pendingColor, setPendingColor] = useState<PaintColor | null>(null);
+  const [selectedColor, setSelectedColor] = useState<PaintColor | null>(null);
   const [search, setSearch] = useState("");
 
   const [photoLoaded, setPhotoLoaded] = useState(false);
   const [tolerance, setTolerance] = useState(38);
   const [strength, setStrength] = useState(72);
-  const [selections, setSelections] = useState<WallSelection[]>([]);
-  const [activeId, setActiveId] = useState<string | null>(null);
+  const [patches, setPatches] = useState<WallPatch[]>([]);
   const [showPaint, setShowPaint] = useState(true);
 
   useEffect(() => {
@@ -236,7 +138,7 @@ export function RoomVisualizer() {
         } else {
           const available = (data ?? []) as PaintColor[];
           setColors(available);
-          setPendingColor(available[0] ?? null);
+          setSelectedColor(available[0] ?? null);
         }
         setColorsLoading(false);
       });
@@ -255,9 +157,6 @@ export function RoomVisualizer() {
       .slice(0, 100);
   }, [colors, search]);
 
-  const activeSelection = useMemo(() => selections.find((selection) => selection.id === activeId) ?? null, [selections, activeId]);
-  const highlightColorId = activeSelection ? activeSelection.color.id : pendingColor?.id;
-
   const renderPreview = useCallback(() => {
     const source = sourceCanvasRef.current;
     const preview = previewCanvasRef.current;
@@ -270,45 +169,35 @@ export function RoomVisualizer() {
     preview.height = source.height;
     const image = sourceContext.getImageData(0, 0, source.width, source.height);
 
-    if (showPaint && selections.length) {
-      // Assign each pixel to whichever selection most recently claimed it,
-      // so overlapping taps don't double-blend — the wall you edited last
-      // simply wins on any shared pixels.
+    if (showPaint && patches.length && selectedColor) {
+      const paint = hexToRgb(selectedColor.hex);
+      const amount = strength / 100;
       const pixelCount = image.data.length / 4;
-      const owner = new Int16Array(pixelCount).fill(-1);
-      selections.forEach((selection, index) => {
-        for (let pixel = 0; pixel < selection.mask.length; pixel += 1) {
-          if (selection.mask[pixel]) owner[pixel] = index;
+      const isWall = new Uint8Array(pixelCount);
+      patches.forEach((patch) => {
+        for (let pixel = 0; pixel < patch.mask.length; pixel += 1) {
+          if (patch.mask[pixel]) isWall[pixel] = 1;
         }
       });
 
       for (let pixel = 0; pixel < pixelCount; pixel += 1) {
-        const ownerIndex = owner[pixel];
-        if (ownerIndex === -1) continue;
-        const selection = selections[ownerIndex];
-        const paint = hexToRgb(selection.color.hex);
-        const amount = selection.strength / 100;
+        if (!isWall[pixel]) continue;
         const offset = pixel * 4;
         // Preserve the wall's own lighting: scale the paint color by this
         // pixel's original luminance instead of flatly overwriting RGB.
         const luminance =
           (image.data[offset] * 0.2126 + image.data[offset + 1] * 0.7152 + image.data[offset + 2] * 0.0722) / 255;
         const light = 0.35 + luminance * 0.9;
-        const shadedRed = Math.min(255, paint.red * light);
-        const shadedGreen = Math.min(255, paint.green * light);
-        const shadedBlue = Math.min(255, paint.blue * light);
-        // "Paint strength" blends between a flat, unshaded coat of the new
-        // color and a fully light/shadow-shaded coat of it — never back
-        // toward the wall's OLD color. This guarantees the new color always
-        // fully replaces the old one; a lower strength just looks like a
-        // flatter coat, not a wash of the previous paint showing through.
-        image.data[offset] = paint.red * (1 - amount) + shadedRed * amount;
-        image.data[offset + 1] = paint.green * (1 - amount) + shadedGreen * amount;
-        image.data[offset + 2] = paint.blue * (1 - amount) + shadedBlue * amount;
+        const targetRed = Math.min(255, paint.red * light);
+        const targetGreen = Math.min(255, paint.green * light);
+        const targetBlue = Math.min(255, paint.blue * light);
+        image.data[offset] = image.data[offset] * (1 - amount) + targetRed * amount;
+        image.data[offset + 1] = image.data[offset + 1] * (1 - amount) + targetGreen * amount;
+        image.data[offset + 2] = image.data[offset + 2] * (1 - amount) + targetBlue * amount;
       }
     }
     previewContext.putImageData(image, 0, 0);
-  }, [selections, showPaint]);
+  }, [patches, showPaint, selectedColor, strength]);
 
   useEffect(() => renderPreview(), [renderPreview]);
 
@@ -317,9 +206,7 @@ export function RoomVisualizer() {
     const context = source?.getContext("2d", { willReadFrequently: true });
     if (!source || !context) return new Uint8Array(0);
     const { width, height } = source;
-    const image = context.getImageData(0, 0, width, height).data;
     const startPixel = seed.y * width + seed.x;
-    const startOffset = startPixel * 4;
     const edgeMap = edgeMapRef.current;
     const selected = new Uint8Array(width * height);
     const visited = new Uint8Array(width * height);
@@ -329,45 +216,48 @@ export function RoomVisualizer() {
     queue[0] = startPixel;
     visited[startPixel] = 1;
 
-    // Running average of the region accepted so far, seeded from the tapped
-    // pixel. New pixels are compared against this MEAN rather than the
-    // original tapped pixel, so the fill can follow gradual lighting drift
-    // across a wall (soft shadows, window light, a photographed vignette)
-    // without hitting an artificial ceiling as it moves away from the exact
-    // spot that was tapped. Real boundaries — corners, trim, door frames —
-    // are still caught by the edge-map check below, independent of this.
-    let meanRed = image[startOffset];
-    let meanGreen = image[startOffset + 1];
-    let meanBlue = image[startOffset + 2];
-    let acceptedCount = 1;
+    // "Wall range" controls how strong a brightness/color change has to be
+    // before it counts as a real boundary (a corner, trim line, door frame)
+    // rather than ordinary shading, shadow, or texture across the wall.
+    const effectiveEdgeThreshold = toleranceValue * 3.2;
+
+    // Safety net for photos with very little local contrast (smoothly
+    // rendered/stock-style images, heavy blur, a flat color-graded filter).
+    // A wall in a room photo is never the entire photo, so growth is capped
+    // both by distance from the tapped point and by total area, independent
+    // of how the edge check behaves.
+    const seedX = seed.x;
+    const seedY = seed.y;
+    const maxDistance = Math.max(width, height) * 0.5;
+    const maxDistanceSq = maxDistance * maxDistance;
+    const maxAcceptedPixels = Math.floor(width * height * 0.45);
+    let acceptedCount = 0;
 
     while (head < tail) {
       const pixel = queue[head++];
-      const offset = pixel * 4;
-      const distance = Math.sqrt(
-        (image[offset] - meanRed) ** 2 + (image[offset + 1] - meanGreen) ** 2 + (image[offset + 2] - meanBlue) ** 2,
-      );
-      if (distance > toleranceValue) continue;
       selected[pixel] = 1;
       acceptedCount += 1;
-      meanRed += (image[offset] - meanRed) / acceptedCount;
-      meanGreen += (image[offset + 1] - meanGreen) / acceptedCount;
-      meanBlue += (image[offset + 2] - meanBlue) / acceptedCount;
+      if (acceptedCount >= maxAcceptedPixels) break; // hit the area safety cap
       const px = pixel % width;
       const neighbors = [pixel - width, pixel + width];
       if (px > 0) neighbors.push(pixel - 1);
       if (px < width - 1) neighbors.push(pixel + 1);
       for (const neighbor of neighbors) {
         if (neighbor < 0 || neighbor >= visited.length || visited[neighbor]) continue;
+        const nx = neighbor % width;
+        const ny = (neighbor - nx) / width;
+        const dx = nx - seedX;
+        const dy = ny - seedY;
+        if (dx * dx + dy * dy > maxDistanceSq) continue; // too far from the tapped point to still be the same wall
         visited[neighbor] = 1;
         if (edgeMap) {
           const crossingStrength = Math.max(edgeMap[pixel], edgeMap[neighbor]);
-          if (crossingStrength > EDGE_THRESHOLD) continue; // real boundary — do not cross
+          if (crossingStrength > effectiveEdgeThreshold) continue; // real boundary — do not cross
         }
         queue[tail++] = neighbor;
       }
     }
-    return dilateMask(fillSmallGaps(selected, width, height, Math.round(width * height * MAX_HOLE_FRACTION)), width, height, 1);
+    return selected;
   }, []);
 
   const loadPhoto = (event: ChangeEvent<HTMLInputElement>) => {
@@ -404,8 +294,7 @@ export function RoomVisualizer() {
       }
 
       setPhotoLoaded(true);
-      setSelections([]);
-      setActiveId(null);
+      setPatches([]);
       setShowPaint(true);
       URL.revokeObjectURL(url);
     };
@@ -416,7 +305,7 @@ export function RoomVisualizer() {
     image.src = url;
   };
 
-  const selectWall = (event: MouseEvent<HTMLCanvasElement>) => {
+  const tapCanvas = (event: MouseEvent<HTMLCanvasElement>) => {
     const canvas = previewCanvasRef.current;
     if (!canvas || !photoLoaded) return;
     const bounds = canvas.getBoundingClientRect();
@@ -424,77 +313,39 @@ export function RoomVisualizer() {
     const y = Math.max(0, Math.min(canvas.height - 1, Math.floor(((event.clientY - bounds.top) * canvas.height) / bounds.height)));
     const pixel = y * canvas.width + x;
 
-    // Tapping inside an already-selected wall re-activates it for editing
-    // instead of starting a new, overlapping selection.
-    const hit = selections.find((selection) => selection.mask[pixel]);
+    // Tapping inside an already-painted patch removes just that patch.
+    const hit = patches.find((patch) => patch.mask[pixel]);
     if (hit) {
-      setActiveId(hit.id);
-      setTolerance(hit.tolerance);
-      setStrength(hit.strength);
-      setShowPaint(true);
+      setPatches((prev) => prev.filter((patch) => patch.id !== hit.id));
       return;
     }
 
-    const color = pendingColor ?? colors[0];
-    if (!color) {
+    if (!selectedColor) {
       toast.error("Colors are still loading — try again in a moment.");
       return;
     }
     const mask = buildMaskFor({ x, y }, tolerance);
     const id = String(nextIdRef.current++);
-    const newSelection: WallSelection = { id, seed: { x, y }, tolerance, strength, mask, color };
-    setSelections((prev) => [...prev, newSelection]);
-    setActiveId(id);
+    setPatches((prev) => [...prev, { id, seed: { x, y }, mask }]);
     setShowPaint(true);
   };
 
-  const selectExistingWall = (id: string) => {
-    const selection = selections.find((entry) => entry.id === id);
-    if (!selection) return;
-    setActiveId(id);
-    setTolerance(selection.tolerance);
-    setStrength(selection.strength);
-  };
+  const clearAllPatches = () => setPatches([]);
 
-  const removeWall = (id: string) => {
-    setSelections((prev) => prev.filter((selection) => selection.id !== id));
-    setActiveId((current) => (current === id ? null : current));
-  };
-
-  const clearAllWalls = () => {
-    setSelections([]);
-    setActiveId(null);
-  };
+  const undoLastPatch = () => setPatches((prev) => prev.slice(0, -1));
 
   const updateTolerance = (value: number) => {
     setTolerance(value);
-    if (!activeId) return; // no wall active yet — this just sets the default for the next new wall
-    setSelections((prev) =>
-      prev.map((selection) =>
-        selection.id === activeId ? { ...selection, tolerance: value, mask: buildMaskFor(selection.seed, value) } : selection,
-      ),
-    );
-  };
-
-  const updateStrength = (value: number) => {
-    setStrength(value);
-    if (!activeId) return;
-    setSelections((prev) => prev.map((selection) => (selection.id === activeId ? { ...selection, strength: value } : selection)));
-  };
-
-  const chooseColor = (color: PaintColor) => {
-    setPendingColor(color);
-    if (activeId) {
-      setSelections((prev) => prev.map((selection) => (selection.id === activeId ? { ...selection, color } : selection)));
-      setShowPaint(true);
-    }
+    // Tolerance is shared by every patch, so a change re-runs the fill from
+    // each patch's original tap point rather than only affecting new taps.
+    setPatches((prev) => prev.map((patch) => ({ ...patch, mask: buildMaskFor(patch.seed, value) })));
   };
 
   const download = () => {
     const canvas = previewCanvasRef.current;
     if (!canvas || !photoLoaded) return;
     const link = document.createElement("a");
-    const name = (activeSelection?.color.name ?? pendingColor?.name ?? "sunburst").replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "");
+    const name = (selectedColor?.name ?? "sunburst").replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "");
     link.download = `${name}-room-preview.png`;
     link.href = canvas.toDataURL("image/png");
     link.click();
@@ -508,9 +359,9 @@ export function RoomVisualizer() {
           <canvas ref={sourceCanvasRef} className="hidden" />
           <canvas
             ref={previewCanvasRef}
-            onClick={selectWall}
+            onClick={tapCanvas}
             className={`max-h-[620px] w-full object-contain ${photoLoaded ? "cursor-crosshair" : "hidden"}`}
-            aria-label="Room color preview. Tap a wall to paint it, or tap a painted wall to edit it."
+            aria-label="Room color preview. Tap a wall to paint it, tap a painted wall to remove it."
           />
           {!photoLoaded && (
             <label className="flex min-h-80 w-full cursor-pointer flex-col items-center justify-center gap-3 text-center">
@@ -535,57 +386,34 @@ export function RoomVisualizer() {
                 <input type="file" accept="image/*" capture="environment" onChange={loadPhoto} className="hidden" />
               </label>
             </Button>
-            <Button variant="outline" size="sm" onClick={() => activeId && removeWall(activeId)} disabled={!activeId}>
+            <Button variant="outline" size="sm" onClick={undoLastPatch} disabled={!patches.length}>
               <RotateCcw className="mr-1.5 h-4 w-4" />
-              Reset wall
+              Undo last tap
             </Button>
-            <Button variant="outline" size="sm" onClick={() => setShowPaint((visible) => !visible)} disabled={!selections.length}>
+            <Button variant="outline" size="sm" onClick={() => setShowPaint((visible) => !visible)} disabled={!patches.length}>
               {showPaint ? <EyeOff className="mr-1.5 h-4 w-4" /> : <Eye className="mr-1.5 h-4 w-4" />}
               {showPaint ? "Before" : "After"}
             </Button>
-            <Button size="sm" onClick={download} disabled={!selections.length} className="ml-auto">
+            <Button size="sm" onClick={download} disabled={!patches.length} className="ml-auto">
               <Download className="mr-1.5 h-4 w-4" />
               Download
             </Button>
           </div>
         )}
 
-        {selections.length > 0 && (
-          <div className="flex flex-wrap items-center gap-2">
-            {selections.map((selection, index) => (
-              <button
-                key={selection.id}
-                type="button"
-                onClick={() => selectExistingWall(selection.id)}
-                className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${
-                  selection.id === activeId ? "border-accent bg-accent/10" : "border-border hover:bg-muted/60"
-                }`}
-              >
-                <span className="h-3.5 w-3.5 shrink-0 rounded-full border border-border" style={{ backgroundColor: selection.color.hex }} />
-                Wall {index + 1}
-                <X
-                  className="h-3 w-3 text-muted-foreground hover:text-foreground"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    removeWall(selection.id);
-                  }}
-                />
-              </button>
-            ))}
-            <button type="button" onClick={clearAllWalls} className="text-xs text-muted-foreground underline-offset-2 hover:underline">
+        {patches.length > 0 && (
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <span>{patches.length} {patches.length === 1 ? "area" : "areas"} selected</span>
+            <button type="button" onClick={clearAllPatches} className="underline-offset-2 hover:underline">
               Clear all
             </button>
           </div>
         )}
 
         <p className="text-sm text-muted-foreground">
-          {activeSelection
-            ? "Editing this wall — try colors or adjust the controls below. Tap another wall to add a second color."
-            : selections.length
-              ? "Tap another wall to add a color there, or tap a painted wall to edit it."
-              : photoLoaded
-                ? "Tap the middle of the wall you want to paint."
-                : "No photo is ever uploaded — the preview is rendered locally in your browser."}
+          {photoLoaded
+            ? "Tap each wall you want painted — they'll all share the color you pick. Tap a painted area again to remove it."
+            : "No photo is ever uploaded — the preview is rendered locally in your browser."}
         </p>
       </section>
 
@@ -604,9 +432,9 @@ export function RoomVisualizer() {
                 <button
                   key={color.id}
                   type="button"
-                  onClick={() => chooseColor(color)}
+                  onClick={() => { setSelectedColor(color); setShowPaint(true); }}
                   className={`flex w-full items-center gap-3 border-b border-border p-2.5 text-left last:border-0 ${
-                    highlightColorId === color.id ? "bg-accent/10" : "hover:bg-muted/60"
+                    selectedColor?.id === color.id ? "bg-accent/10" : "hover:bg-muted/60"
                   }`}
                 >
                   <span className="h-9 w-9 shrink-0 rounded border border-border" style={{ backgroundColor: color.hex }} />
@@ -622,9 +450,7 @@ export function RoomVisualizer() {
               <p className="p-5 text-center text-sm text-muted-foreground">No matching colors</p>
             )}
           </div>
-          <p className="text-xs text-muted-foreground">
-            {activeSelection ? "Applies to the wall you're currently editing." : "Applies to the next wall you tap."}
-          </p>
+          <p className="text-xs text-muted-foreground">Applies to every wall you've selected.</p>
         </div>
 
         <div className="space-y-4 border-t border-border pt-4">
@@ -654,7 +480,7 @@ export function RoomVisualizer() {
               min="30"
               max="100"
               value={strength}
-              onChange={(event) => updateStrength(Number(event.target.value))}
+              onChange={(event) => setStrength(Number(event.target.value))}
               className="w-full accent-accent"
             />
           </div>
