@@ -239,9 +239,21 @@ export function RoomVisualizer() {
       acceptedCount += 1;
       if (acceptedCount >= maxAcceptedPixels) break; // hit the area safety cap
       const px = pixel % width;
-      const neighbors = [pixel - width, pixel + width];
+      const py = (pixel - px) / width;
+      // 8-connected (including diagonals) rather than just up/down/left/right.
+      // With only 4-connectivity, unconstrained growth forms a diamond, which
+      // looks jarring on a photo with little real edge signal to shape it
+      // instead (the distance cap becomes the dominant boundary). Diagonals
+      // round that out into something closer to a natural, camera-like shape.
+      const neighbors: number[] = [];
+      if (py > 0) neighbors.push(pixel - width);
+      if (py < height - 1) neighbors.push(pixel + width);
       if (px > 0) neighbors.push(pixel - 1);
       if (px < width - 1) neighbors.push(pixel + 1);
+      if (px > 0 && py > 0) neighbors.push(pixel - width - 1);
+      if (px < width - 1 && py > 0) neighbors.push(pixel - width + 1);
+      if (px > 0 && py < height - 1) neighbors.push(pixel + width - 1);
+      if (px < width - 1 && py < height - 1) neighbors.push(pixel + width + 1);
       for (const neighbor of neighbors) {
         if (neighbor < 0 || neighbor >= visited.length || visited[neighbor]) continue;
         const nx = neighbor % width;
