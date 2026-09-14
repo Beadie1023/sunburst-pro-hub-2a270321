@@ -50,8 +50,9 @@ function refineMask(selection: Uint8Array, width: number, height: number) {
     return output;
   };
 
-  // Closing (dilate then erode) fills holes without growing the wall outline.
-  const closed = morph(morph(selection, true, 2), false, 2);
+  // Closing (dilate then erode) fills tiny texture holes without letting the
+  // mask bridge thin boundaries like trim or door frames.
+  const closed = morph(morph(selection, true, 1), false, 1);
 
   // Box blur into 0-255 weights for a soft edge.
   const feathered = new Uint8ClampedArray(closed.length);
@@ -77,7 +78,7 @@ export function RoomVisualizer() {
   const [photoLoaded, setPhotoLoaded] = useState(false);
   const [selectedColor, setSelectedColor] = useState<VisualizerColor | null>(null);
   const [search, setSearch] = useState("");
-  const [tolerance, setTolerance] = useState(38);
+  const [tolerance, setTolerance] = useState(28);
   const [strength, setStrength] = useState(72);
   const [seed, setSeed] = useState<{ x: number; y: number } | null>(null);
   const [mask, setMask] = useState<Uint8ClampedArray | null>(null);
