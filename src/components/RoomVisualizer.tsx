@@ -199,10 +199,11 @@ export function RoomVisualizer() {
       if (px > 0) neighbors.push(pixel - 1);
       if (px < width - 1) neighbors.push(pixel + 1);
       for (const neighbor of neighbors) {
-        if (neighbor >= 0 && neighbor < visited.length && !visited[neighbor]) {
-          visited[neighbor] = 1;
-          queue[tail++] = neighbor;
-        }
+        if (neighbor < 0 || neighbor >= visited.length || visited[neighbor]) continue;
+        // Do not step across a hard edge — that is a different surface.
+        if (pixelDistance(offset, neighbor * 4) > edgeLimit) continue;
+        visited[neighbor] = 1;
+        queue[tail++] = neighbor;
       }
     }
     setMask(refineMask(selected, width, height));
