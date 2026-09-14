@@ -24,6 +24,51 @@ function hexToRgb(hex: string) {
   return { red: (value >> 16) & 255, green: (value >> 8) & 255, blue: value & 255 };
 }
 
+/**
+ * Cleans a raw binary selection: closes pin-holes left by texture noise, then
+ * feathers the border so painted walls blend instead of showing hard blotches.
+ */
+function refineMask(selection: Uint8Array, width: number, height: number) {
+  const at = (data: Uint8Array, x: number, y: number) =>
+    x < 0 || y < 0 || x >= width || y >= height ? 0 : data[y * width + x];
+
+  const morph = (data: Uint8Array, dilate: boolean, radius: number) => {
+    const output = new Uint8Array(data.length);
+    for (let y = 0; y < height; y += 1) {
+      for (let x = 0; x < width; x += 1) {
+        let hit = dilate ? 0 : 1;
+        for (let dy = -radius; dy <= radius && (dilate ? !hit : hit); dy += 1) {
+          for (let dx = -radius; dx <= radius; dx += 1) {
+            const value = at(data, x + dx, y + dy);
+            if (dilate && value) { hit = 1; break; }
+            if (!dilate && !value) { hit = 0; break; }
+          }
+        }
+        output[y * width + x] = hit;
+      }
+    }
+    return output;
+  };
+
+  // Closing (dilate then erode) fills holes without growing the wall outline.
+  const closed = morph(morph(selection, true, 2), false, 2);
+
+  // Box blur into 0-255 weights for a soft edge.
+  const feathered = new Uint8ClampedArray(closed.length);
+  const radius = 2;
+  const area = (radius * 2 + 1) ** 2;
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      let total = 0;
+      for (let dy = -radius; dy <= radius; dy += 1) {
+        for (let dx = -radius; dx <= radius; dx += 1) total += at(closed, x + dx, y + dy);
+      }
+      feathered[y * width + x] = Math.round((total / area) * 255);
+    }
+  }
+  return feathered;
+}
+
 export function RoomVisualizer() {
   const sourceCanvasRef = useRef<HTMLCanvasElement>(null);
   const previewCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -35,7 +80,8 @@ export function RoomVisualizer() {
   const [tolerance, setTolerance] = useState(38);
   const [strength, setStrength] = useState(72);
   const [seed, setSeed] = useState<{ x: number; y: number } | null>(null);
-  const [mask, setMask] = useState<Uint8Array | null>(null);
+  const [mask, setMask] = useState<Uint8ClampedArray | null>(null);
+  const [working, setWorking] = useState(false);
   const [showPaint, setShowPaint] = useState(true);
 
   useEffect(() => {
@@ -56,7 +102,7 @@ export function RoomVisualizer() {
   const renderPreview = useCallback(() => {
     const source = sourceCanvasRef.current;
     const preview = previewCanvasRef.current;
-    if (!source || !preview) return;
+    if (!source || !preview || !source.width) return;
     const sourceContext = source.getContext("2d", { willReadFrequently: true });
     const previewContext = preview.getContext("2d");
     if (!sourceContext || !previewContext) return;
@@ -66,12 +112,14 @@ export function RoomVisualizer() {
     const image = sourceContext.getImageData(0, 0, source.width, source.height);
     if (showPaint && mask && selectedColor) {
       const paint = hexToRgb(selectedColor.hex);
-      const amount = strength / 100;
+      const maxAmount = strength / 100;
       for (let pixel = 0; pixel < mask.length; pixel += 1) {
-        if (!mask[pixel]) continue;
+        const weight = mask[pixel];
+        if (!weight) continue;
+        const amount = maxAmount * (weight / 255);
         const offset = pixel * 4;
         const luminance = (image.data[offset] * 0.2126 + image.data[offset + 1] * 0.7152 + image.data[offset + 2] * 0.0722) / 255;
-        const light = 0.35 + luminance * 0.9;
+        const light = 0.4 + luminance * 0.85;
         const targetRed = Math.min(255, paint.red * light);
         const targetGreen = Math.min(255, paint.green * light);
         const targetBlue = Math.min(255, paint.blue * light);
@@ -91,26 +139,49 @@ export function RoomVisualizer() {
     if (!source || !context) return;
     const { width, height } = source;
     const image = context.getImageData(0, 0, width, height).data;
-    const startPixel = y * width + x;
-    const startOffset = startPixel * 4;
-    const target = [image[startOffset], image[startOffset + 1], image[startOffset + 2]];
+
+    // Average a small patch around the tap so one noisy pixel cannot define the wall.
+    let sumRed = 0, sumGreen = 0, sumBlue = 0, samples = 0;
+    for (let dy = -3; dy <= 3; dy += 1) {
+      for (let dx = -3; dx <= 3; dx += 1) {
+        const sx = x + dx;
+        const sy = y + dy;
+        if (sx < 0 || sy < 0 || sx >= width || sy >= height) continue;
+        const offset = (sy * width + sx) * 4;
+        sumRed += image[offset];
+        sumGreen += image[offset + 1];
+        sumBlue += image[offset + 2];
+        samples += 1;
+      }
+    }
+    const targetRed = sumRed / samples;
+    const targetGreen = sumGreen / samples;
+    const targetBlue = sumBlue / samples;
+    const targetLuminance = targetRed * 0.2126 + targetGreen * 0.7152 + targetBlue * 0.0722;
+    // Hue signature of the wall, independent of how brightly it is lit.
+    const targetRedGreen = targetRed - targetGreen;
+    const targetGreenBlue = targetGreen - targetBlue;
+    const chromaLimit = Math.max(10, tolerance * 0.6);
+    const luminanceLimit = tolerance * 2.4;
+
     const selected = new Uint8Array(width * height);
     const visited = new Uint8Array(width * height);
     const queue = new Int32Array(width * height);
     let head = 0;
     let tail = 1;
+    const startPixel = y * width + x;
     queue[0] = startPixel;
     visited[startPixel] = 1;
 
     while (head < tail) {
       const pixel = queue[head++];
       const offset = pixel * 4;
-      const distance = Math.sqrt(
-        (image[offset] - target[0]) ** 2 +
-        (image[offset + 1] - target[1]) ** 2 +
-        (image[offset + 2] - target[2]) ** 2,
-      );
-      if (distance > tolerance) continue;
+      const red = image[offset];
+      const green = image[offset + 1];
+      const blue = image[offset + 2];
+      const chromaDistance = Math.abs(red - green - targetRedGreen) + Math.abs(green - blue - targetGreenBlue);
+      const luminanceDistance = Math.abs(red * 0.2126 + green * 0.7152 + blue * 0.0722 - targetLuminance);
+      if (chromaDistance > chromaLimit || luminanceDistance > luminanceLimit) continue;
       selected[pixel] = 1;
       const px = pixel % width;
       const neighbors = [pixel - width, pixel + width];
@@ -123,11 +194,17 @@ export function RoomVisualizer() {
         }
       }
     }
-    setMask(selected);
+    setMask(refineMask(selected, width, height));
   }, [tolerance]);
 
   useEffect(() => {
-    if (seed) buildMask(seed.x, seed.y);
+    if (!seed) return;
+    setWorking(true);
+    const timer = window.setTimeout(() => {
+      buildMask(seed.x, seed.y);
+      setWorking(false);
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [buildMask, seed]);
 
   const loadPhoto = (event: ChangeEvent<HTMLInputElement>) => {
@@ -197,6 +274,11 @@ export function RoomVisualizer() {
             className={`max-h-[620px] w-full object-contain ${photoLoaded ? "cursor-crosshair" : "hidden"}`}
             aria-label="Room color preview. Click a wall to paint it."
           />
+          {working && (
+            <div className="absolute inset-0 flex items-center justify-center bg-background/50">
+              <Loader2 className="h-6 w-6 animate-spin text-accent" />
+            </div>
+          )}
           {!photoLoaded && (
             <label className="flex min-h-80 w-full cursor-pointer flex-col items-center justify-center gap-3 text-center">
               <span className="flex h-12 w-12 items-center justify-center rounded-full bg-accent/15 text-accent"><ImagePlus className="h-6 w-6" /></span>
@@ -214,7 +296,13 @@ export function RoomVisualizer() {
             <Button size="sm" onClick={download} disabled={!mask} className="ml-auto"><Download className="mr-1.5 h-4 w-4" />Download</Button>
           </div>
         )}
-        <p className="text-sm text-muted-foreground">{mask ? "Wall selected. Try colors or adjust the controls." : photoLoaded ? "Tap the middle of the wall you want to paint." : "Your photo stays on this device."}</p>
+        <p className="text-sm text-muted-foreground">
+          {mask
+            ? "Wall selected. If paint spreads too far, lower the wall range; if patches are missed, raise it."
+            : photoLoaded
+              ? "Tap the middle of the wall you want to paint."
+              : "Your photo stays on this device."}
+        </p>
       </section>
 
       <aside className="space-y-5">
