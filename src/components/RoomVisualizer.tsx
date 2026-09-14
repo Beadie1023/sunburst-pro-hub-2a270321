@@ -30,6 +30,11 @@ const MIN_SPECK_FRACTION = 0.001;
 // skipped, lower it if furniture is still getting painted.
 const WALL_ZONE_FRACTION = 0.62;
 
+// Any unpainted gap smaller than this fraction of the photo, found inside
+// the matched area, is treated as a stray shadow/highlight exclusion and
+// filled back in rather than left as a hole.
+const MAX_GAP_FRACTION = 0.04;
+
 function hexToRgb(hex: string) {
   const normalized = hex.replace("#", "");
   const value = Number.parseInt(
@@ -99,6 +104,52 @@ function buildGlobalMask(
     }
   }
   return selected;
+}
+
+/**
+ * Fills small unpainted gaps left inside the mask — a patch of wall that
+ * happened to sit far enough from the current average color (a deep shadow,
+ * a bright highlight) to fall outside tolerance on its own, even though
+ * it's clearly the same wall. Classified purely by connected-component
+ * size, same as removeSmallSpecks below — a stray gap stays small, while
+ * a real un-painted surface (floor, furniture, closet interior) is much
+ * larger by comparison.
+ */
+function fillSmallGaps(mask: Uint8Array, width: number, height: number, maxGapSize: number): Uint8Array {
+  const filled = new Uint8Array(mask);
+  const visited = new Uint8Array(width * height);
+  const queue = new Int32Array(width * height);
+
+  for (let start = 0; start < width * height; start += 1) {
+    if (mask[start] || visited[start]) continue;
+    let head = 0;
+    let tail = 0;
+    queue[tail++] = start;
+    visited[start] = 1;
+    const members: number[] = [start];
+    while (head < tail) {
+      const pixel = queue[head++];
+      const px = pixel % width;
+      const py = (pixel - px) / width;
+      const neighbors: number[] = [];
+      if (px > 0) neighbors.push(pixel - 1);
+      if (px < width - 1) neighbors.push(pixel + 1);
+      if (py > 0) neighbors.push(pixel - width);
+      if (py < height - 1) neighbors.push(pixel + width);
+      for (const neighbor of neighbors) {
+        if (!mask[neighbor] && !visited[neighbor]) {
+          visited[neighbor] = 1;
+          queue[tail++] = neighbor;
+          members.push(neighbor);
+        }
+      }
+    }
+    if (members.length <= maxGapSize) {
+      for (const member of members) filled[member] = 1;
+    }
+  }
+
+  return filled;
 }
 
 /**
@@ -261,7 +312,8 @@ export function RoomVisualizer() {
     const maxRow = Math.max(Math.round(height * WALL_ZONE_FRACTION), y + 20);
 
     const rawMask = buildGlobalMask(image, width, height, seedOffset, toleranceValue, maxRow);
-    const cleaned = removeSmallSpecks(rawMask, width, height, Math.max(4, Math.round(pixelCount * MIN_SPECK_FRACTION)));
+    const gapsFilled = fillSmallGaps(rawMask, width, height, Math.round(width * height * MAX_GAP_FRACTION));
+    const cleaned = removeSmallSpecks(gapsFilled, width, height, Math.max(4, Math.round(pixelCount * MIN_SPECK_FRACTION)));
     setMask(cleaned);
   }, []);
 
