@@ -161,8 +161,19 @@ export function RoomVisualizer() {
     // Hue signature of the wall, independent of how brightly it is lit.
     const targetRedGreen = targetRed - targetGreen;
     const targetGreenBlue = targetGreen - targetBlue;
-    const chromaLimit = Math.max(10, tolerance * 0.6);
-    const luminanceLimit = tolerance * 2.4;
+    const chromaLimit = Math.max(8, tolerance * 0.45);
+    const luminanceLimit = tolerance * 1.8;
+    // Sharp boundary detector: walls change brightness gradually, while door
+    // frames, trim, furniture edges and pictures change color in a single step.
+    // The fill refuses to cross any edge stronger than this, so paint stays on
+    // the tapped wall only.
+    const edgeLimit = Math.max(18, tolerance * 1.2);
+    const pixelDistance = (from: number, to: number) => {
+      const redDiff = image[from] - image[to];
+      const greenDiff = image[from + 1] - image[to + 1];
+      const blueDiff = image[from + 2] - image[to + 2];
+      return Math.abs(redDiff) + Math.abs(greenDiff) + Math.abs(blueDiff);
+    };
 
     const selected = new Uint8Array(width * height);
     const visited = new Uint8Array(width * height);
