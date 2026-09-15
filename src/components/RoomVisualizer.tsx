@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type ChangeEvent } from "react";
 import { Download, ImagePlus, Loader2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
+import { FunctionsHttpError } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,7 +41,7 @@ function prepareImage(file: File): Promise<{ data: string; mimeType: string }> {
       if (comma < 0) return reject(new Error("Could not encode image."));
 
       const data = dataUrl.slice(comma + 1);
-      if (Math.ceil(data.length * 3 / 4) > MAX_BYTES) {
+      if (Math.ceil((data.length * 3) / 4) > MAX_BYTES) {
         return reject(new Error("Photo is too large. Please choose a smaller image."));
       }
 
@@ -53,6 +54,29 @@ function prepareImage(file: File): Promise<{ data: string; mimeType: string }> {
     };
     img.src = url;
   });
+}
+
+/**
+ * supabase.functions.invoke() sets `data` to null on any non-2xx response, so the
+ * server's own error message is lost unless it is read off error.context.
+ */
+async function readFunctionError(error: unknown): Promise<string> {
+  if (error instanceof FunctionsHttpError) {
+    try {
+      const body = await error.context.json();
+      if (typeof body?.error === "string") return body.error;
+      if (typeof body?.message === "string") return body.message;
+      return JSON.stringify(body);
+    } catch {
+      try {
+        const text = await error.context.text();
+        if (text) return text;
+      } catch {
+        /* fall through */
+      }
+    }
+  }
+  return error instanceof Error ? error.message : "Visualization failed.";
 }
 
 const surfaceNames: Record<Surface, string> = {
@@ -69,6 +93,7 @@ export function RoomVisualizer() {
   const [search, setSearch] = useState("");
   const [projectType, setProjectType] = useState<"interior" | "exterior">("interior");
   const [surface, setSurface] = useState<Surface>("walls");
+  const [originalBase64, setOriginalBase64] = useState<string | null>(null);
   const [originalImage, setOriginalImage] = useState<string | null>(null);
   const [resultImage, setResultImage] = useState<string | null>(null);
   const [resultMimeType, setResultMimeType] = useState("image/png");
@@ -84,6 +109,7 @@ export function RoomVisualizer() {
       .order("name")
       .then(({ data, error }) => {
         if (error) {
+          console.error("paint_colors query failed:", error);
           toast.error("Could not load SunBurst colors.");
         } else {
           const list = (data ?? []) as PaintColor[];
@@ -96,12 +122,15 @@ export function RoomVisualizer() {
 
   const filteredColors = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return colors.filter(c =>
-      !q ||
-      c.name.toLowerCase().includes(q) ||
-      c.code.toLowerCase().includes(q) ||
-      c.collection.toLowerCase().includes(q)
-    ).slice(0, 100);
+    return colors
+      .filter(
+        c =>
+          !q ||
+          c.name.toLowerCase().includes(q) ||
+          c.code.toLowerCase().includes(q) ||
+          c.collection.toLowerCase().includes(q)
+      )
+      .slice(0, 100);
   }, [colors, search]);
 
   const upload = async (e: ChangeEvent<HTMLInputElement>) => {
@@ -116,6 +145,7 @@ export function RoomVisualizer() {
 
     try {
       const prepared = await prepareImage(file);
+      setOriginalBase64(prepared.data);
       setOriginalImage(`data:${prepared.mimeType};base64,${prepared.data}`);
       setResultImage(null);
       setShowBefore(false);
@@ -125,31 +155,49 @@ export function RoomVisualizer() {
   };
 
   const visualize = async () => {
-    if (!originalImage || !selectedColor) {
+    if (!originalBase64 || !selectedColor) {
       toast.error("Upload a photo and select a SunBurst color first.");
       return;
     }
-
-    const comma = originalImage.indexOf(",");
-    const imageBase64 = originalImage.slice(comma + 1);
 
     setGenerating(true);
     try {
       const { data, error } = await supabase.functions.invoke("visualize-project", {
         body: {
-          imageBase64,
+          imageBase64: originalBase64,
           mimeType: "image/jpeg",
           projectType,
           surface,
-          color: selectedColor,
+          color: {
+            id: selectedColor.id,
+            code: selectedColor.code,
+            name: selectedColor.name,
+            hex: selectedColor.hex,
+            collection: selectedColor.collection,
+          },
         },
       });
 
-      if (error) throw new Error(error.message || "Visualization failed.");
-      if (!data?.imageBase64) throw new Error(data?.error || "No image was returned.");
+      if (error) {
+        const message = await readFunctionError(error);
+        console.error("visualize-project failed:", message, error);
+        throw new Error(message);
+      }
 
-      setResultMimeType(data.mimeType || "image/png");
-      setResultImage(`data:${data.mimeType || "image/png"};base64,${data.imageBase64}`);
+      if (!data?.imageBase64) {
+        throw new Error(data?.error || "The server did not return an image.");
+      }
+
+      // The function echoed the upload back instead of editing it. Without this
+      // check the UI reports success while showing the untouched photo.
+      if (data.imageBase64 === originalBase64) {
+        console.warn("visualize-project returned the original image unchanged.");
+        throw new Error("The server returned the original photo. No paint was applied.");
+      }
+
+      const mimeType = data.mimeType || "image/png";
+      setResultMimeType(mimeType);
+      setResultImage(`data:${mimeType};base64,${data.imageBase64}`);
       setShowBefore(false);
       toast.success("Project visualization is ready.");
     } catch (err) {
@@ -162,7 +210,8 @@ export function RoomVisualizer() {
   const download = () => {
     if (!resultImage) return;
     const ext = resultMimeType.includes("jpeg") ? "jpg" : "png";
-    const name = selectedColor?.name.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "") || "sunburst";
+    const name =
+      selectedColor?.name.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "") || "sunburst";
     const a = document.createElement("a");
     a.href = resultImage;
     a.download = `${name}-project-visualization.${ext}`;
@@ -182,7 +231,13 @@ export function RoomVisualizer() {
               <span className="max-w-md text-sm text-muted-foreground">
                 Use the actual room, house, wall, or project photo you want to visualize.
               </span>
-              <input type="file" accept="image/*" capture="environment" onChange={upload} className="hidden" />
+              <input
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={upload}
+                className="hidden"
+              />
             </label>
           ) : (
             <img
@@ -208,7 +263,13 @@ export function RoomVisualizer() {
             <Button variant="outline" size="sm" asChild>
               <label className="cursor-pointer">
                 <ImagePlus className="mr-1.5 h-4 w-4" /> New photo
-                <input type="file" accept="image/*" capture="environment" onChange={upload} className="hidden" />
+                <input
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  onChange={upload}
+                  className="hidden"
+                />
               </label>
             </Button>
 
@@ -274,24 +335,29 @@ export function RoomVisualizer() {
               <div className="p-6 text-center text-sm text-muted-foreground">
                 <Loader2 className="mx-auto mb-2 h-4 w-4 animate-spin" /> Loading colors
               </div>
-            ) : filteredColors.map(color => (
-              <button
-                key={color.id}
-                type="button"
-                onClick={() => setSelectedColor(color)}
-                className={`flex w-full items-center gap-3 border-b p-2.5 text-left last:border-0 ${
-                  selectedColor?.id === color.id ? "bg-accent/10" : "hover:bg-muted/60"
-                }`}
-              >
-                <span className="h-9 w-9 shrink-0 rounded border" style={{ backgroundColor: color.hex }} />
-                <span className="min-w-0">
-                  <span className="block truncate text-sm font-semibold">{color.name}</span>
-                  <span className="block text-xs text-muted-foreground">
-                    {color.code} · {color.collection} · {color.hex}
+            ) : (
+              filteredColors.map(color => (
+                <button
+                  key={color.id}
+                  type="button"
+                  onClick={() => setSelectedColor(color)}
+                  className={`flex w-full items-center gap-3 border-b p-2.5 text-left last:border-0 ${
+                    selectedColor?.id === color.id ? "bg-accent/10" : "hover:bg-muted/60"
+                  }`}
+                >
+                  <span
+                    className="h-9 w-9 shrink-0 rounded border"
+                    style={{ backgroundColor: color.hex }}
+                  />
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm font-semibold">{color.name}</span>
+                    <span className="block text-xs text-muted-foreground">
+                      {color.code} · {color.collection} · {color.hex}
+                    </span>
                   </span>
-                </span>
-              </button>
-            ))}
+                </button>
+              ))
+            )}
           </div>
         </div>
 
@@ -307,11 +373,20 @@ export function RoomVisualizer() {
           </div>
         )}
 
-        <Button className="w-full" size="lg" disabled={!originalImage || !selectedColor || generating} onClick={visualize}>
+        <Button
+          className="w-full"
+          size="lg"
+          disabled={!originalImage || !selectedColor || generating}
+          onClick={visualize}
+        >
           {generating ? (
-            <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Visualizing…</>
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Visualizing…
+            </>
           ) : (
-            <><Sparkles className="mr-2 h-4 w-4" /> Visualize my project</>
+            <>
+              <Sparkles className="mr-2 h-4 w-4" /> Visualize my project
+            </>
           )}
         </Button>
 
