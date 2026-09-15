@@ -166,9 +166,9 @@ export function RoomVisualizer() {
     // rendered/stock-style images, heavy blur). A wall is never the entire
     // photo, so growth is capped both by distance from the tapped point
     // and by total area, independent of how the edge check behaves.
-    const maxDistance = Math.max(width, height) * 0.5;
+    const maxDistance = Math.max(width, height) * 0.3;
     const maxDistanceSq = maxDistance * maxDistance;
-    const maxAcceptedPixels = Math.floor(width * height * 0.45);
+    const maxAcceptedPixels = Math.floor(width * height * 0.25);
     let acceptedCount = 0;
 
     while (head < tail) {
