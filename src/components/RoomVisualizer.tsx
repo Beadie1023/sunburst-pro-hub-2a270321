@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState, type ChangeEvent, type MouseEvent } from "react";
-import { Download, Eye, EyeOff, ImagePlus, Loader2, RotateCcw } from "lucide-react";
+import { useCallback, useEffect, useRef, useState, type ChangeEvent, type PointerEvent as ReactPointerEvent } from "react";
+import { Brush, Download, Eraser, Eye, EyeOff, ImagePlus, Loader2, MousePointerClick, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,8 @@ interface VisualizerColor {
   collection: string;
 }
 
+type Mode = "select" | "add" | "erase";
+
 const MAX_IMAGE_EDGE = 1400;
 
 function hexToRgb(hex: string) {
@@ -24,10 +26,72 @@ function hexToRgb(hex: string) {
   return { red: (value >> 16) & 255, green: (value >> 8) & 255, blue: value & 255 };
 }
 
+/** Separable box blur used to approximate a Gaussian at a given radius. */
+function blurChannels(data: Uint8ClampedArray, width: number, height: number, radius: number) {
+  const size = width * height;
+  const source = new Float32Array(size * 3);
+  for (let pixel = 0; pixel < size; pixel += 1) {
+    source[pixel * 3] = data[pixel * 4];
+    source[pixel * 3 + 1] = data[pixel * 4 + 1];
+    source[pixel * 3 + 2] = data[pixel * 4 + 2];
+  }
+  const pass = (input: Float32Array, horizontal: boolean) => {
+    const output = new Float32Array(input.length);
+    const outer = horizontal ? height : width;
+    const inner = horizontal ? width : height;
+    for (let o = 0; o < outer; o += 1) {
+      for (let i = 0; i < inner; i += 1) {
+        let r = 0, g = 0, b = 0, count = 0;
+        for (let k = -radius; k <= radius; k += 1) {
+          const j = i + k;
+          if (j < 0 || j >= inner) continue;
+          const index = (horizontal ? o * width + j : j * width + o) * 3;
+          r += input[index]; g += input[index + 1]; b += input[index + 2];
+          count += 1;
+        }
+        const target = (horizontal ? o * width + i : i * width + o) * 3;
+        output[target] = r / count;
+        output[target + 1] = g / count;
+        output[target + 2] = b / count;
+      }
+    }
+    return output;
+  };
+  // Two box passes per axis give a smooth, Gaussian-like result.
+  return pass(pass(pass(pass(source, true), false), true), false);
+}
+
 /**
- * Cleans a raw binary selection: closes pin-holes left by texture noise, then
- * feathers the border so painted walls blend instead of showing hard blotches.
+ * Builds a boundary map. Walls change brightness gradually, while ceilings,
+ * floors, trim, doors and furniture meet the wall along a ridge. Two blur
+ * scales are combined so both crisp trim lines and soft ceiling corners
+ * register as barriers the paint must not cross.
  */
+function buildEdgeMap(data: Uint8ClampedArray, width: number, height: number) {
+  const scales = [
+    { blurred: blurChannels(data, width, height, 2), weight: 1.5 },
+    { blurred: blurChannels(data, width, height, 5), weight: 4 },
+  ];
+  const edges = new Float32Array(width * height);
+  for (const { blurred, weight } of scales) {
+    const gray = new Float32Array(width * height);
+    for (let pixel = 0; pixel < gray.length; pixel += 1) {
+      gray[pixel] = blurred[pixel * 3] * 0.2126 + blurred[pixel * 3 + 1] * 0.7152 + blurred[pixel * 3 + 2] * 0.0722;
+    }
+    for (let y = 1; y < height - 1; y += 1) {
+      for (let x = 1; x < width - 1; x += 1) {
+        const pixel = y * width + x;
+        const dx = (gray[pixel + 1] - gray[pixel - 1]) / 2;
+        const dy = (gray[pixel + width] - gray[pixel - width]) / 2;
+        const magnitude = Math.hypot(dx, dy) * weight;
+        if (magnitude > edges[pixel]) edges[pixel] = magnitude;
+      }
+    }
+  }
+  return { edges, smooth: scales[1].blurred };
+}
+
+/** Closes pin-holes from texture noise, then feathers the border. */
 function refineMask(selection: Uint8Array, width: number, height: number) {
   const at = (data: Uint8Array, x: number, y: number) =>
     x < 0 || y < 0 || x >= width || y >= height ? 0 : data[y * width + x];
@@ -50,11 +114,8 @@ function refineMask(selection: Uint8Array, width: number, height: number) {
     return output;
   };
 
-  // Closing (dilate then erode) fills tiny texture holes without letting the
-  // mask bridge thin boundaries like trim or door frames.
-  const closed = morph(morph(selection, true, 1), false, 1);
+  const closed = morph(morph(selection, true, 2), false, 2);
 
-  // Box blur into 0-255 weights for a soft edge.
   const feathered = new Uint8ClampedArray(closed.length);
   const radius = 2;
   const area = (radius * 2 + 1) ** 2;
@@ -73,14 +134,18 @@ function refineMask(selection: Uint8Array, width: number, height: number) {
 export function RoomVisualizer() {
   const sourceCanvasRef = useRef<HTMLCanvasElement>(null);
   const previewCanvasRef = useRef<HTMLCanvasElement>(null);
+  const analysisRef = useRef<{ edges: Float32Array; smooth: Float32Array } | null>(null);
+  const maskRef = useRef<Uint8ClampedArray | null>(null);
+  const paintingRef = useRef(false);
   const [colors, setColors] = useState<VisualizerColor[]>([]);
   const [colorsLoading, setColorsLoading] = useState(true);
   const [photoLoaded, setPhotoLoaded] = useState(false);
   const [selectedColor, setSelectedColor] = useState<VisualizerColor | null>(null);
   const [search, setSearch] = useState("");
-  const [tolerance, setTolerance] = useState(28);
+  const [tolerance, setTolerance] = useState(40);
   const [strength, setStrength] = useState(72);
-  const [seed, setSeed] = useState<{ x: number; y: number } | null>(null);
+  const [brushSize, setBrushSize] = useState(28);
+  const [mode, setMode] = useState<Mode>("select");
   const [mask, setMask] = useState<Uint8ClampedArray | null>(null);
   const [working, setWorking] = useState(false);
   const [showPaint, setShowPaint] = useState(true);
@@ -98,6 +163,11 @@ export function RoomVisualizer() {
         setSelectedColor(availableColors[0] ?? null);
         setColorsLoading(false);
       });
+  }, []);
+
+  const applyMask = useCallback((next: Uint8ClampedArray | null) => {
+    maskRef.current = next;
+    setMask(next ? new Uint8ClampedArray(next) : null);
   }, []);
 
   const renderPreview = useCallback(() => {
@@ -136,10 +206,10 @@ export function RoomVisualizer() {
 
   const buildMask = useCallback((x: number, y: number) => {
     const source = sourceCanvasRef.current;
-    const context = source?.getContext("2d", { willReadFrequently: true });
-    if (!source || !context) return;
+    const analysis = analysisRef.current;
+    if (!source || !analysis) return;
     const { width, height } = source;
-    const image = context.getImageData(0, 0, width, height).data;
+    const { edges, smooth } = analysis;
 
     // Average a small patch around the tap so one noisy pixel cannot define the wall.
     let sumRed = 0, sumGreen = 0, sumBlue = 0, samples = 0;
@@ -148,10 +218,10 @@ export function RoomVisualizer() {
         const sx = x + dx;
         const sy = y + dy;
         if (sx < 0 || sy < 0 || sx >= width || sy >= height) continue;
-        const offset = (sy * width + sx) * 4;
-        sumRed += image[offset];
-        sumGreen += image[offset + 1];
-        sumBlue += image[offset + 2];
+        const index = (sy * width + sx) * 3;
+        sumRed += smooth[index];
+        sumGreen += smooth[index + 1];
+        sumBlue += smooth[index + 2];
         samples += 1;
       }
     }
@@ -159,22 +229,13 @@ export function RoomVisualizer() {
     const targetGreen = sumGreen / samples;
     const targetBlue = sumBlue / samples;
     const targetLuminance = targetRed * 0.2126 + targetGreen * 0.7152 + targetBlue * 0.0722;
-    // Hue signature of the wall, independent of how brightly it is lit.
     const targetRedGreen = targetRed - targetGreen;
     const targetGreenBlue = targetGreen - targetBlue;
-    const chromaLimit = Math.max(8, tolerance * 0.45);
-    const luminanceLimit = tolerance * 1.8;
-    // Sharp boundary detector: walls change brightness gradually, while door
-    // frames, trim, furniture edges and pictures change color in a single step.
-    // The fill refuses to cross any edge stronger than this, so paint stays on
-    // the tapped wall only.
-    const edgeLimit = Math.max(18, tolerance * 1.2);
-    const pixelDistance = (from: number, to: number) => {
-      const redDiff = image[from] - image[to];
-      const greenDiff = image[from + 1] - image[to + 1];
-      const blueDiff = image[from + 2] - image[to + 2];
-      return Math.abs(redDiff) + Math.abs(greenDiff) + Math.abs(blueDiff);
-    };
+    const chromaLimit = Math.max(10, tolerance * 0.8);
+    const luminanceLimit = tolerance * 2.2;
+    // Boundary strength the fill will not cross: this is what keeps paint off
+    // the ceiling, floor, trim, doors and furniture.
+    const edgeLimit = 1.4 + tolerance * 0.04;
 
     const selected = new Uint8Array(width * height);
     const visited = new Uint8Array(width * height);
@@ -187,10 +248,11 @@ export function RoomVisualizer() {
 
     while (head < tail) {
       const pixel = queue[head++];
-      const offset = pixel * 4;
-      const red = image[offset];
-      const green = image[offset + 1];
-      const blue = image[offset + 2];
+      if (edges[pixel] > edgeLimit) continue;
+      const index = pixel * 3;
+      const red = smooth[index];
+      const green = smooth[index + 1];
+      const blue = smooth[index + 2];
       const chromaDistance = Math.abs(red - green - targetRedGreen) + Math.abs(green - blue - targetGreenBlue);
       const luminanceDistance = Math.abs(red * 0.2126 + green * 0.7152 + blue * 0.0722 - targetLuminance);
       if (chromaDistance > chromaLimit || luminanceDistance > luminanceLimit) continue;
@@ -201,24 +263,47 @@ export function RoomVisualizer() {
       if (px < width - 1) neighbors.push(pixel + 1);
       for (const neighbor of neighbors) {
         if (neighbor < 0 || neighbor >= visited.length || visited[neighbor]) continue;
-        // Do not step across a hard edge — that is a different surface.
-        if (pixelDistance(offset, neighbor * 4) > edgeLimit) continue;
         visited[neighbor] = 1;
         queue[tail++] = neighbor;
       }
     }
-    setMask(refineMask(selected, width, height));
-  }, [tolerance]);
 
-  useEffect(() => {
-    if (!seed) return;
-    setWorking(true);
-    const timer = window.setTimeout(() => {
-      buildMask(seed.x, seed.y);
-      setWorking(false);
-    }, 0);
-    return () => window.clearTimeout(timer);
-  }, [buildMask, seed]);
+    const refined = refineMask(selected, width, height);
+    // Keep anything already painted by hand, and merge extra wall selections.
+    const existing = maskRef.current;
+    if (existing && existing.length === refined.length) {
+      for (let pixel = 0; pixel < refined.length; pixel += 1) {
+        if (existing[pixel] > refined[pixel]) refined[pixel] = existing[pixel];
+      }
+    }
+    applyMask(refined);
+  }, [applyMask, tolerance]);
+
+  const paintStroke = useCallback((x: number, y: number, adding: boolean) => {
+    const source = sourceCanvasRef.current;
+    if (!source) return;
+    const { width, height } = source;
+    const current = maskRef.current ?? new Uint8ClampedArray(width * height);
+    const radius = brushSize;
+    for (let dy = -radius; dy <= radius; dy += 1) {
+      const py = y + dy;
+      if (py < 0 || py >= height) continue;
+      for (let dx = -radius; dx <= radius; dx += 1) {
+        const px = x + dx;
+        if (px < 0 || px >= width) continue;
+        const distance = Math.hypot(dx, dy);
+        if (distance > radius) continue;
+        // Soft brush edge so touch-ups blend with the flood-filled area.
+        const falloff = Math.min(1, (radius - distance) / Math.max(1, radius * 0.4));
+        const pixel = py * width + px;
+        const value = Math.round(255 * falloff);
+        current[pixel] = adding
+          ? Math.max(current[pixel], value)
+          : Math.min(current[pixel], 255 - value);
+      }
+    }
+    applyMask(current);
+  }, [applyMask, brushSize]);
 
   const loadPhoto = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -238,9 +323,11 @@ export function RoomVisualizer() {
       preview.width = source.width;
       preview.height = source.height;
       preview.getContext("2d")?.drawImage(source, 0, 0);
+      const pixels = context?.getImageData(0, 0, source.width, source.height);
+      analysisRef.current = pixels ? buildEdgeMap(pixels.data, source.width, source.height) : null;
       setPhotoLoaded(true);
-      setSeed(null);
-      setMask(null);
+      setMode("select");
+      applyMask(null);
       URL.revokeObjectURL(url);
     };
     image.onerror = () => {
@@ -251,16 +338,41 @@ export function RoomVisualizer() {
     event.target.value = "";
   };
 
-  const selectWall = (event: MouseEvent<HTMLCanvasElement>) => {
+  const canvasPoint = (event: ReactPointerEvent<HTMLCanvasElement>) => {
     const canvas = previewCanvasRef.current;
-    if (!canvas || !photoLoaded) return;
+    if (!canvas) return null;
     const bounds = canvas.getBoundingClientRect();
-    setSeed({
+    return {
       x: Math.max(0, Math.min(canvas.width - 1, Math.floor((event.clientX - bounds.left) * canvas.width / bounds.width))),
       y: Math.max(0, Math.min(canvas.height - 1, Math.floor((event.clientY - bounds.top) * canvas.height / bounds.height))),
-    });
-    setShowPaint(true);
+    };
   };
+
+  const handlePointerDown = (event: ReactPointerEvent<HTMLCanvasElement>) => {
+    if (!photoLoaded) return;
+    const point = canvasPoint(event);
+    if (!point) return;
+    setShowPaint(true);
+    if (mode === "select") {
+      setWorking(true);
+      window.setTimeout(() => {
+        buildMask(point.x, point.y);
+        setWorking(false);
+      }, 0);
+      return;
+    }
+    paintingRef.current = true;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    paintStroke(point.x, point.y, mode === "add");
+  };
+
+  const handlePointerMove = (event: ReactPointerEvent<HTMLCanvasElement>) => {
+    if (!paintingRef.current || mode === "select") return;
+    const point = canvasPoint(event);
+    if (point) paintStroke(point.x, point.y, mode === "add");
+  };
+
+  const stopStroke = () => { paintingRef.current = false; };
 
   const download = () => {
     const canvas = previewCanvasRef.current;
@@ -276,6 +388,12 @@ export function RoomVisualizer() {
     return !query || color.name.toLowerCase().includes(query) || color.code.toLowerCase().includes(query);
   }).slice(0, 80);
 
+  const modes: { id: Mode; label: string; icon: typeof Brush }[] = [
+    { id: "select", label: "Pick wall", icon: MousePointerClick },
+    { id: "erase", label: "Remove paint", icon: Eraser },
+    { id: "add", label: "Add paint", icon: Brush },
+  ];
+
   return (
     <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_300px]">
       <section className="space-y-3">
@@ -283,9 +401,12 @@ export function RoomVisualizer() {
           <canvas ref={sourceCanvasRef} className="hidden" />
           <canvas
             ref={previewCanvasRef}
-            onClick={selectWall}
-            className={`max-h-[620px] w-full object-contain ${photoLoaded ? "cursor-crosshair" : "hidden"}`}
-            aria-label="Room color preview. Click a wall to paint it."
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={stopStroke}
+            onPointerLeave={stopStroke}
+            className={`max-h-[620px] w-full touch-none object-contain ${photoLoaded ? "cursor-crosshair" : "hidden"}`}
+            aria-label="Room color preview. Tap a wall to paint it, then touch up with the brushes."
           />
           {working && (
             <div className="absolute inset-0 flex items-center justify-center bg-background/50">
@@ -302,19 +423,45 @@ export function RoomVisualizer() {
           )}
         </div>
         {photoLoaded && (
-          <div className="flex flex-wrap items-center gap-2">
-            <Button variant="outline" size="sm" asChild><label className="cursor-pointer"><ImagePlus className="mr-1.5 h-4 w-4" />New photo<input type="file" accept="image/*" capture="environment" onChange={loadPhoto} className="hidden" /></label></Button>
-            <Button variant="outline" size="sm" onClick={() => { setSeed(null); setMask(null); }} disabled={!mask}><RotateCcw className="mr-1.5 h-4 w-4" />Reset wall</Button>
-            <Button variant="outline" size="sm" onClick={() => setShowPaint((visible) => !visible)} disabled={!mask}>{showPaint ? <EyeOff className="mr-1.5 h-4 w-4" /> : <Eye className="mr-1.5 h-4 w-4" />}{showPaint ? "Before" : "After"}</Button>
-            <Button size="sm" onClick={download} disabled={!mask} className="ml-auto"><Download className="mr-1.5 h-4 w-4" />Download</Button>
-          </div>
+          <>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex overflow-hidden rounded-md border border-border">
+                {modes.map(({ id, label, icon: Icon }) => (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => setMode(id)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold ${mode === id ? "bg-accent text-accent-foreground" : "bg-background text-muted-foreground hover:bg-muted"}`}
+                  >
+                    <Icon className="h-3.5 w-3.5" />{label}
+                  </button>
+                ))}
+              </div>
+              {mode !== "select" && (
+                <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                  Brush
+                  <input type="range" min="8" max="90" value={brushSize} onChange={(event) => setBrushSize(Number(event.target.value))} className="w-24 accent-accent" />
+                </label>
+              )}
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button variant="outline" size="sm" asChild><label className="cursor-pointer"><ImagePlus className="mr-1.5 h-4 w-4" />New photo<input type="file" accept="image/*" capture="environment" onChange={loadPhoto} className="hidden" /></label></Button>
+              <Button variant="outline" size="sm" onClick={() => { applyMask(null); setMode("select"); }} disabled={!mask}><RotateCcw className="mr-1.5 h-4 w-4" />Reset wall</Button>
+              <Button variant="outline" size="sm" onClick={() => setShowPaint((visible) => !visible)} disabled={!mask}>{showPaint ? <EyeOff className="mr-1.5 h-4 w-4" /> : <Eye className="mr-1.5 h-4 w-4" />}{showPaint ? "Before" : "After"}</Button>
+              <Button size="sm" onClick={download} disabled={!mask} className="ml-auto"><Download className="mr-1.5 h-4 w-4" />Download</Button>
+            </div>
+          </>
         )}
         <p className="text-sm text-muted-foreground">
-          {mask
-            ? "Wall selected. If paint spreads too far, lower the wall range; if patches are missed, raise it."
-            : photoLoaded
-              ? "Tap the middle of the wall you want to paint."
-              : "Your photo stays on this device."}
+          {!photoLoaded
+            ? "Your photo stays on this device."
+            : mode === "erase"
+              ? "Drag over anything that should not be painted, like a ceiling or furniture."
+              : mode === "add"
+                ? "Drag over wall patches the paint missed."
+                : mask
+                  ? "Tap another wall to paint it too. If paint spreads too far, lower the wall range, then tidy the edges with Remove paint."
+                  : "Tap the middle of the wall you want to paint."}
         </p>
       </section>
 
