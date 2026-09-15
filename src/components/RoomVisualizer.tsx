@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type PointerEvent } from "react";
-import { Download, Eye, EyeOff, ImagePlus, Loader2, RotateCcw } from "lucide-react";
+import { useEffect, useMemo, useState, type ChangeEvent } from "react";
+import { Download, ImagePlus, Loader2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -14,233 +14,67 @@ interface PaintColor {
   collection: string;
 }
 
-const MAX_IMAGE_EDGE = 1400;
+type Surface = "walls" | "ceiling" | "trim" | "roof" | "walls-and-roof";
 
-// After the global color match, any selected "island" smaller than this
-// fraction of the whole photo is dropped — it's almost always an incidental
-// color match on furniture/decor rather than a real wall, and removing it
-// keeps stray paint specks off the bed, floor, or nightstand.
-const MIN_SPECK_FRACTION = 0.001;
+const MAX_EDGE = 1400;
+const MAX_BYTES = 7 * 1024 * 1024;
 
-// Only the top portion of the photo is eligible for the color match, since
-// walls dominate the upper part of a typical room photo while furniture and
-// floor dominate the lower part. This is a practical heuristic, not real
-// object recognition, so it can still be fooled by an unusual photo
-// composition — raise it if legitimate wall lower in the frame is being
-// skipped, lower it if furniture is still getting painted.
-const WALL_ZONE_FRACTION = 0.62;
+function prepareImage(file: File): Promise<{ data: string; mimeType: string }> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
 
-// Any unpainted gap smaller than this fraction of the photo, found inside
-// the matched area, is treated as a stray shadow/highlight exclusion and
-// filled back in rather than left as a hole.
-const MAX_GAP_FRACTION = 0.04;
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const scale = Math.min(1, MAX_EDGE / Math.max(img.naturalWidth, img.naturalHeight));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(img.naturalWidth * scale));
+      canvas.height = Math.max(1, Math.round(img.naturalHeight * scale));
 
-function hexToRgb(hex: string) {
-  const normalized = hex.replace("#", "");
-  const value = Number.parseInt(
-    normalized.length === 3
-      ? normalized.split("").map((character) => character + character).join("")
-      : normalized,
-    16,
-  );
-  return { red: (value >> 16) & 255, green: (value >> 8) & 255, blue: value & 255 };
-}
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return reject(new Error("Could not prepare image."));
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
-/**
- * Selects every pixel in the photo whose color is close to the tapped
- * point — not just pixels connected to it. Refines the reference color a
- * few times (recomputing the average of whatever currently matches) so it
- * settles on the room's actual overall wall tone rather than just the one
- * pixel that was tapped, which lets it catch walls in different lighting
- * without needing a separate tap for each one.
- *
- * `maxRow` excludes anything below that row from ever being a candidate —
- * both from being selected AND from influencing the running average — so a
- * similarly-toned bedspread or rug lower in the frame can't get pulled in
- * or skew the reference color toward furniture.
- */
-function buildGlobalMask(
-  image: Uint8ClampedArray,
-  width: number,
-  height: number,
-  seedOffset: number,
-  tolerance: number,
-  maxRow: number,
-): Uint8Array {
-  const pixelCount = width * height;
-  let meanRed = image[seedOffset];
-  let meanGreen = image[seedOffset + 1];
-  let meanBlue = image[seedOffset + 2];
+      const dataUrl = canvas.toDataURL("image/jpeg", 0.86);
+      const comma = dataUrl.indexOf(",");
+      if (comma < 0) return reject(new Error("Could not encode image."));
 
-  let selected = new Uint8Array(pixelCount);
-  const refinementPasses = 4;
-  for (let pass = 0; pass < refinementPasses; pass += 1) {
-    const next = new Uint8Array(pixelCount);
-    let sumRed = 0;
-    let sumGreen = 0;
-    let sumBlue = 0;
-    let count = 0;
-    for (let pixel = 0; pixel < pixelCount; pixel += 1) {
-      const row = Math.floor(pixel / width);
-      if (row > maxRow) continue;
-      const offset = pixel * 4;
-      const dRed = image[offset] - meanRed;
-      const dGreen = image[offset + 1] - meanGreen;
-      const dBlue = image[offset + 2] - meanBlue;
-      const distance = Math.sqrt(dRed * dRed + dGreen * dGreen + dBlue * dBlue);
-      if (distance <= tolerance) {
-        next[pixel] = 1;
-        sumRed += image[offset];
-        sumGreen += image[offset + 1];
-        sumBlue += image[offset + 2];
-        count += 1;
+      const data = dataUrl.slice(comma + 1);
+      if (Math.ceil(data.length * 3 / 4) > MAX_BYTES) {
+        return reject(new Error("Photo is too large. Please choose a smaller image."));
       }
-    }
-    selected = next;
-    if (count > 0) {
-      meanRed = sumRed / count;
-      meanGreen = sumGreen / count;
-      meanBlue = sumBlue / count;
-    }
-  }
-  return selected;
+
+      resolve({ data, mimeType: "image/jpeg" });
+    };
+
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("Could not open that photo."));
+    };
+    img.src = url;
+  });
 }
 
-/**
- * Fills small unpainted gaps left inside the mask — a patch of wall that
- * happened to sit far enough from the current average color (a deep shadow,
- * a bright highlight) to fall outside tolerance on its own, even though
- * it's clearly the same wall. Classified purely by connected-component
- * size, same as removeSmallSpecks below — a stray gap stays small, while
- * a real un-painted surface (floor, furniture, closet interior) is much
- * larger by comparison.
- */
-function fillSmallGaps(mask: Uint8Array, width: number, height: number, maxGapSize: number): Uint8Array {
-  const filled = new Uint8Array(mask);
-  const visited = new Uint8Array(width * height);
-  const queue = new Int32Array(width * height);
+const surfaceNames: Record<Surface, string> = {
+  walls: "Walls",
+  ceiling: "Ceiling",
+  trim: "Trim",
+  roof: "Roof",
+  "walls-and-roof": "Walls + Roof",
+};
 
-  for (let start = 0; start < width * height; start += 1) {
-    if (mask[start] || visited[start]) continue;
-    let head = 0;
-    let tail = 0;
-    queue[tail++] = start;
-    visited[start] = 1;
-    const members: number[] = [start];
-    while (head < tail) {
-      const pixel = queue[head++];
-      const px = pixel % width;
-      const py = (pixel - px) / width;
-      const neighbors: number[] = [];
-      if (px > 0) neighbors.push(pixel - 1);
-      if (px < width - 1) neighbors.push(pixel + 1);
-      if (py > 0) neighbors.push(pixel - width);
-      if (py < height - 1) neighbors.push(pixel + width);
-      for (const neighbor of neighbors) {
-        if (!mask[neighbor] && !visited[neighbor]) {
-          visited[neighbor] = 1;
-          queue[tail++] = neighbor;
-          members.push(neighbor);
-        }
-      }
-    }
-    if (members.length <= maxGapSize) {
-      for (const member of members) filled[member] = 1;
-    }
-  }
-
-  return filled;
-}
-
-/**
- * Removes small connected "islands" from a mask — cleans up incidental
- * color matches (a lamp shade, a pale pillow) that happened to fall within
- * tolerance but aren't part of a real wall.
- */
-function removeSmallSpecks(mask: Uint8Array, width: number, height: number, minSize: number): Uint8Array {
-  const cleaned = new Uint8Array(mask);
-  const visited = new Uint8Array(width * height);
-  const queue = new Int32Array(width * height);
-
-  for (let start = 0; start < width * height; start += 1) {
-    if (!mask[start] || visited[start]) continue;
-    let head = 0;
-    let tail = 0;
-    queue[tail++] = start;
-    visited[start] = 1;
-    const members: number[] = [start];
-    while (head < tail) {
-      const pixel = queue[head++];
-      const px = pixel % width;
-      const py = (pixel - px) / width;
-      const neighbors: number[] = [];
-      if (px > 0) neighbors.push(pixel - 1);
-      if (px < width - 1) neighbors.push(pixel + 1);
-      if (py > 0) neighbors.push(pixel - width);
-      if (py < height - 1) neighbors.push(pixel + width);
-      for (const neighbor of neighbors) {
-        if (mask[neighbor] && !visited[neighbor]) {
-          visited[neighbor] = 1;
-          queue[tail++] = neighbor;
-          members.push(neighbor);
-        }
-      }
-    }
-    if (members.length < minSize) {
-      for (const member of members) cleaned[member] = 0;
-    }
-  }
-
-  return cleaned;
-}
-
-/**
- * Room Visualizer
- *
- * Everything runs on-device: the photo is decoded straight into a
- * <canvas>, the paint mask is built by matching color across the WHOLE
- * photo (not just one connected blob), and the chosen paint is blended in
- * using each pixel's own luminance so shadows/highlights/texture survive.
- * The photo is never sent anywhere — there is no network call in this
- * component. The only server round-trip in AI Design Tools remains the
- * separate Color Match flow (recommend-colors).
- *
- * Tapping any wall paints every matching wall in the photo at once —
- * including walls separated by the bed, a doorway, or furniture — since
- * selection is based on color, not on pixel connectivity. Furniture, floor,
- * and other clearly different-colored surfaces are excluded by the
- * tolerance check.
- */
 export function RoomVisualizer() {
-  const sourceCanvasRef = useRef<HTMLCanvasElement>(null);
-  const previewCanvasRef = useRef<HTMLCanvasElement>(null);
-  // Mirrors the `mask` state but is mutated directly, pixel-by-pixel, while
-  // a brush stroke is in progress — going through setState on every single
-  // pointer-move event would be far too slow on a ~1400px photo. The stroke
-  // is committed back into React state once via setMask when it ends.
-  const maskRef = useRef<Uint8Array | null>(null);
-  const isDrawingRef = useRef(false);
-
   const [colors, setColors] = useState<PaintColor[]>([]);
-  const [colorsLoading, setColorsLoading] = useState(true);
   const [selectedColor, setSelectedColor] = useState<PaintColor | null>(null);
   const [search, setSearch] = useState("");
-
-  const [photoLoaded, setPhotoLoaded] = useState(false);
-  const [tolerance, setTolerance] = useState(38);
-  const [strength, setStrength] = useState(72);
-  const [seed, setSeed] = useState<{ x: number; y: number } | null>(null);
-  const [mask, setMask] = useState<Uint8Array | null>(null);
-  const [showPaint, setShowPaint] = useState(true);
-  // "select" = tap to auto-match a wall's color across the whole photo.
-  // "add" / "erase" = drag directly on the photo to hand-correct whatever
-  // the auto-match missed or wrongly caught (e.g. bedding that matched).
-  const [tool, setTool] = useState<"select" | "add" | "erase">("select");
-  const [brushSize, setBrushSize] = useState(28);
-
-  useEffect(() => {
-    maskRef.current = mask;
-  }, [mask]);
+  const [projectType, setProjectType] = useState<"interior" | "exterior">("interior");
+  const [surface, setSurface] = useState<Surface>("walls");
+  const [originalImage, setOriginalImage] = useState<string | null>(null);
+  const [resultImage, setResultImage] = useState<string | null>(null);
+  const [resultMimeType, setResultMimeType] = useState("image/png");
+  const [loading, setLoading] = useState(true);
+  const [generating, setGenerating] = useState(false);
+  const [showBefore, setShowBefore] = useState(false);
 
   useEffect(() => {
     supabase
@@ -250,394 +84,242 @@ export function RoomVisualizer() {
       .order("name")
       .then(({ data, error }) => {
         if (error) {
-          toast.error("Could not load the Sunburst colors.");
+          toast.error("Could not load SunBurst colors.");
         } else {
-          const available = (data ?? []) as PaintColor[];
-          setColors(available);
-          setSelectedColor(available[0] ?? null);
+          const list = (data ?? []) as PaintColor[];
+          setColors(list);
+          setSelectedColor(list[0] ?? null);
         }
-        setColorsLoading(false);
+        setLoading(false);
       });
   }, []);
 
   const filteredColors = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    return colors
-      .filter(
-        (color) =>
-          !query ||
-          color.name.toLowerCase().includes(query) ||
-          color.code.toLowerCase().includes(query) ||
-          color.collection.toLowerCase().includes(query),
-      )
-      .slice(0, 100);
+    const q = search.trim().toLowerCase();
+    return colors.filter(c =>
+      !q ||
+      c.name.toLowerCase().includes(q) ||
+      c.code.toLowerCase().includes(q) ||
+      c.collection.toLowerCase().includes(q)
+    ).slice(0, 100);
   }, [colors, search]);
 
-  // Paints the preview canvas from a given mask. Takes the mask as a plain
-  // argument (rather than always reading React state) so a brush stroke can
-  // call this directly, imperatively, on every pointer-move for instant
-  // visual feedback without waiting on a React re-render each time.
-  const paintFromMask = useCallback(
-    (currentMask: Uint8Array | null) => {
-      const source = sourceCanvasRef.current;
-      const preview = previewCanvasRef.current;
-      if (!source || !preview) return;
-      const sourceContext = source.getContext("2d", { willReadFrequently: true });
-      const previewContext = preview.getContext("2d");
-      if (!sourceContext || !previewContext) return;
-
-      preview.width = source.width;
-      preview.height = source.height;
-      const image = sourceContext.getImageData(0, 0, source.width, source.height);
-
-      if (showPaint && currentMask && selectedColor) {
-        const paint = hexToRgb(selectedColor.hex);
-        const amount = strength / 100;
-        for (let pixel = 0; pixel < currentMask.length; pixel += 1) {
-          if (!currentMask[pixel]) continue;
-          const offset = pixel * 4;
-          // Preserve the wall's own lighting: scale the paint color by this
-          // pixel's original luminance instead of flatly overwriting RGB.
-          const luminance =
-            (image.data[offset] * 0.2126 + image.data[offset + 1] * 0.7152 + image.data[offset + 2] * 0.0722) / 255;
-          const light = 0.35 + luminance * 0.9;
-          const shadedRed = Math.min(255, paint.red * light);
-          const shadedGreen = Math.min(255, paint.green * light);
-          const shadedBlue = Math.min(255, paint.blue * light);
-          // "Paint strength" blends between a flat, unshaded coat of the new
-          // color and a fully light/shadow-shaded coat of it — never back
-          // toward the wall's OLD color, so the new color always fully
-          // replaces the old one regardless of the slider position.
-          image.data[offset] = paint.red * (1 - amount) + shadedRed * amount;
-          image.data[offset + 1] = paint.green * (1 - amount) + shadedGreen * amount;
-          image.data[offset + 2] = paint.blue * (1 - amount) + shadedBlue * amount;
-        }
-      }
-      previewContext.putImageData(image, 0, 0);
-    },
-    [selectedColor, showPaint, strength],
-  );
-
-  const renderPreview = useCallback(() => paintFromMask(mask), [paintFromMask, mask]);
-  useEffect(() => renderPreview(), [renderPreview]);
-
-  const buildMask = useCallback((x: number, y: number, toleranceValue: number) => {
-    const source = sourceCanvasRef.current;
-    const context = source?.getContext("2d", { willReadFrequently: true });
-    if (!source || !context) return;
-    const { width, height } = source;
-    const image = context.getImageData(0, 0, width, height).data;
-    const pixelCount = width * height;
-    const seedOffset = (y * width + x) * 4;
-    // Always include at least a little margin below the tapped point itself
-    // (in case someone deliberately taps lower on a wall), but otherwise
-    // cap candidates to the upper portion of the frame.
-    const maxRow = Math.max(Math.round(height * WALL_ZONE_FRACTION), y + 20);
-
-    const rawMask = buildGlobalMask(image, width, height, seedOffset, toleranceValue, maxRow);
-    const gapsFilled = fillSmallGaps(rawMask, width, height, Math.round(width * height * MAX_GAP_FRACTION));
-    const cleaned = removeSmallSpecks(gapsFilled, width, height, Math.max(4, Math.round(pixelCount * MIN_SPECK_FRACTION)));
-    setMask(cleaned);
-  }, []);
-
-  useEffect(() => {
-    if (seed) buildMask(seed.x, seed.y, tolerance);
-  }, [buildMask, seed, tolerance]);
-
-  const loadPhoto = (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    event.target.value = "";
+  const upload = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
     if (!file) return;
+
     if (!file.type.startsWith("image/")) {
-      toast.error("Please choose a photo file.");
+      toast.error("Please choose an image.");
       return;
     }
 
-    const image = new Image();
-    const url = URL.createObjectURL(file);
-    image.onload = () => {
-      const source = sourceCanvasRef.current;
-      const preview = previewCanvasRef.current;
-      if (!source || !preview) return;
-      // Downscale before drawing to canvas — keeps the global color match
-      // fast, and this happens entirely in-memory (no upload).
-      const scale = Math.min(1, MAX_IMAGE_EDGE / Math.max(image.width, image.height));
-      source.width = Math.round(image.width * scale);
-      source.height = Math.round(image.height * scale);
-      const context = source.getContext("2d", { willReadFrequently: true });
-      context?.drawImage(image, 0, 0, source.width, source.height);
-      preview.width = source.width;
-      preview.height = source.height;
-      preview.getContext("2d")?.drawImage(source, 0, 0);
-
-      setPhotoLoaded(true);
-      setSeed(null);
-      setMask(null);
-      setShowPaint(true);
-      setTool("select");
-      URL.revokeObjectURL(url);
-    };
-    image.onerror = () => {
-      URL.revokeObjectURL(url);
-      toast.error("Could not open that photo.");
-    };
-    image.src = url;
-  };
-
-  const canvasPointFromEvent = (event: PointerEvent<HTMLCanvasElement>) => {
-    const canvas = previewCanvasRef.current;
-    if (!canvas) return { x: 0, y: 0 };
-    const bounds = canvas.getBoundingClientRect();
-    return {
-      x: Math.max(0, Math.min(canvas.width - 1, Math.floor(((event.clientX - bounds.left) * canvas.width) / bounds.width))),
-      y: Math.max(0, Math.min(canvas.height - 1, Math.floor(((event.clientY - bounds.top) * canvas.height) / bounds.height))),
-    };
-  };
-
-  // Sets every pixel within `brushSize` of (x, y) to `value` directly on
-  // maskRef, then repaints immediately — this is what makes Add/Erase feel
-  // like a real brush rather than a laggy one-shot action.
-  const applyBrush = (x: number, y: number, value: 0 | 1) => {
-    const source = sourceCanvasRef.current;
-    if (!source) return;
-    const { width, height } = source;
-    if (!maskRef.current) maskRef.current = new Uint8Array(width * height);
-    const radius = brushSize;
-    const radiusSq = radius * radius;
-    const minX = Math.max(0, x - radius);
-    const maxX = Math.min(width - 1, x + radius);
-    const minY = Math.max(0, y - radius);
-    const maxY = Math.min(height - 1, y + radius);
-    for (let py = minY; py <= maxY; py += 1) {
-      for (let px = minX; px <= maxX; px += 1) {
-        const dx = px - x;
-        const dy = py - y;
-        if (dx * dx + dy * dy <= radiusSq) {
-          maskRef.current[py * width + px] = value;
-        }
-      }
+    try {
+      const prepared = await prepareImage(file);
+      setOriginalImage(`data:${prepared.mimeType};base64,${prepared.data}`);
+      setResultImage(null);
+      setShowBefore(false);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not load photo.");
     }
-    paintFromMask(maskRef.current);
   };
 
-  const handlePointerDown = (event: PointerEvent<HTMLCanvasElement>) => {
-    const canvas = previewCanvasRef.current;
-    if (!canvas || !photoLoaded) return;
-    const { x, y } = canvasPointFromEvent(event);
-
-    if (tool === "select") {
-      setSeed({ x, y });
-      setShowPaint(true);
+  const visualize = async () => {
+    if (!originalImage || !selectedColor) {
+      toast.error("Upload a photo and select a SunBurst color first.");
       return;
     }
 
-    isDrawingRef.current = true;
-    canvas.setPointerCapture(event.pointerId);
-    setShowPaint(true);
-    applyBrush(x, y, tool === "add" ? 1 : 0);
-  };
+    const comma = originalImage.indexOf(",");
+    const imageBase64 = originalImage.slice(comma + 1);
 
-  const handlePointerMove = (event: PointerEvent<HTMLCanvasElement>) => {
-    if (!isDrawingRef.current || tool === "select") return;
-    const { x, y } = canvasPointFromEvent(event);
-    applyBrush(x, y, tool === "add" ? 1 : 0);
-  };
+    setGenerating(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("visualize-project", {
+        body: {
+          imageBase64,
+          mimeType: "image/jpeg",
+          projectType,
+          surface,
+          color: selectedColor,
+        },
+      });
 
-  const handlePointerUp = () => {
-    if (!isDrawingRef.current) return;
-    isDrawingRef.current = false;
-    // Commit the drag's final result back into React state once, rather
-    // than on every pointer-move, so Reset/Before/Download stay in sync
-    // without re-rendering hundreds of times during one stroke.
-    if (maskRef.current) setMask(new Uint8Array(maskRef.current));
-  };
+      if (error) throw new Error(error.message || "Visualization failed.");
+      if (!data?.imageBase64) throw new Error(data?.error || "No image was returned.");
 
-  const resetWall = () => {
-    setSeed(null);
-    setMask(null);
+      setResultMimeType(data.mimeType || "image/png");
+      setResultImage(`data:${data.mimeType || "image/png"};base64,${data.imageBase64}`);
+      setShowBefore(false);
+      toast.success("Project visualization is ready.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Visualization failed.");
+    } finally {
+      setGenerating(false);
+    }
   };
 
   const download = () => {
-    const canvas = previewCanvasRef.current;
-    if (!canvas || !photoLoaded) return;
-    const link = document.createElement("a");
-    const name = (selectedColor?.name ?? "sunburst").replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "");
-    link.download = `${name}-room-preview.png`;
-    link.href = canvas.toDataURL("image/png");
-    link.click();
+    if (!resultImage) return;
+    const ext = resultMimeType.includes("jpeg") ? "jpg" : "png";
+    const name = selectedColor?.name.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "") || "sunburst";
+    const a = document.createElement("a");
+    a.href = resultImage;
+    a.download = `${name}-project-visualization.${ext}`;
+    a.click();
   };
 
+  const displayed = showBefore ? originalImage : resultImage;
+
   return (
-    <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_300px]">
+    <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
       <section className="space-y-3">
-        <div className="relative flex min-h-80 items-center justify-center overflow-hidden rounded-lg border border-border bg-muted/40">
-          {/* Hidden full-resolution working buffer; the visible canvas is the preview */}
-          <canvas ref={sourceCanvasRef} className="hidden" />
-          <canvas
-            ref={previewCanvasRef}
-            onPointerDown={handlePointerDown}
-            onPointerMove={handlePointerMove}
-            onPointerUp={handlePointerUp}
-            onPointerLeave={handlePointerUp}
-            className={`max-h-[620px] w-full touch-none object-contain ${
-              photoLoaded ? (tool === "select" ? "cursor-crosshair" : "cursor-cell") : "hidden"
-            }`}
-            aria-label="Room color preview. Tap any wall to auto-paint matching walls, or use Add/Erase to correct by hand."
-          />
-          {!photoLoaded && (
+        <div className="relative flex min-h-80 items-center justify-center overflow-hidden rounded-lg border bg-muted/40">
+          {!displayed ? (
             <label className="flex min-h-80 w-full cursor-pointer flex-col items-center justify-center gap-3 text-center">
-              <span className="flex h-12 w-12 items-center justify-center rounded-full bg-accent/15 text-accent">
-                <ImagePlus className="h-6 w-6" />
+              <ImagePlus className="h-8 w-8 text-accent" />
+              <span className="font-semibold">Upload a project photo</span>
+              <span className="max-w-md text-sm text-muted-foreground">
+                Use the actual room, house, wall, or project photo you want to visualize.
               </span>
-              <span className="font-semibold text-foreground">Upload or take a room photo</span>
-              <span className="max-w-xs text-sm text-muted-foreground">
-                Use a clear photo where the wall is visible and evenly lit. Your photo stays on this device.
-              </span>
-              <input type="file" accept="image/*" capture="environment" onChange={loadPhoto} className="hidden" />
+              <input type="file" accept="image/*" capture="environment" onChange={upload} className="hidden" />
             </label>
+          ) : (
+            <img
+              src={displayed}
+              alt={showBefore ? "Original project" : "SunBurst project visualization"}
+              className="max-h-[680px] w-full object-contain"
+            />
+          )}
+
+          {generating && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-background/80 backdrop-blur-sm">
+              <Loader2 className="h-8 w-8 animate-spin text-accent" />
+              <p className="font-semibold">Creating your project visualization…</p>
+              <p className="text-sm text-muted-foreground">
+                AI is identifying the selected paintable surface.
+              </p>
+            </div>
           )}
         </div>
 
-        {photoLoaded && (
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="inline-flex rounded-md border border-border bg-muted/30 p-0.5">
-              <Button
-                variant={tool === "select" ? "default" : "ghost"}
-                size="sm"
-                onClick={() => setTool("select")}
-              >
-                Auto-detect
-              </Button>
-              <Button variant={tool === "add" ? "default" : "ghost"} size="sm" onClick={() => setTool("add")}>
-                Add
-              </Button>
-              <Button variant={tool === "erase" ? "default" : "ghost"} size="sm" onClick={() => setTool("erase")}>
-                Erase
-              </Button>
-            </div>
+        {originalImage && (
+          <div className="flex flex-wrap gap-2">
             <Button variant="outline" size="sm" asChild>
               <label className="cursor-pointer">
-                <ImagePlus className="mr-1.5 h-4 w-4" />
-                New photo
-                <input type="file" accept="image/*" capture="environment" onChange={loadPhoto} className="hidden" />
+                <ImagePlus className="mr-1.5 h-4 w-4" /> New photo
+                <input type="file" accept="image/*" capture="environment" onChange={upload} className="hidden" />
               </label>
             </Button>
-            <Button variant="outline" size="sm" onClick={resetWall} disabled={!mask}>
-              <RotateCcw className="mr-1.5 h-4 w-4" />
-              Reset wall
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => setShowPaint((visible) => !visible)} disabled={!mask}>
-              {showPaint ? <EyeOff className="mr-1.5 h-4 w-4" /> : <Eye className="mr-1.5 h-4 w-4" />}
-              {showPaint ? "Before" : "After"}
-            </Button>
-            <Button size="sm" onClick={download} disabled={!mask} className="ml-auto">
-              <Download className="mr-1.5 h-4 w-4" />
-              Download
+
+            {resultImage && (
+              <Button variant="outline" size="sm" onClick={() => setShowBefore(v => !v)}>
+                {showBefore ? "Show visualization" : "Show original"}
+              </Button>
+            )}
+
+            <Button className="ml-auto" size="sm" disabled={!resultImage} onClick={download}>
+              <Download className="mr-1.5 h-4 w-4" /> Download
             </Button>
           </div>
         )}
-
-        {photoLoaded && tool !== "select" && (
-          <div className="space-y-1.5">
-            <div className="flex justify-between text-sm">
-              <Label htmlFor="brush-size">Brush size</Label>
-              <span className="text-muted-foreground">{brushSize}px</span>
-            </div>
-            <input
-              id="brush-size"
-              type="range"
-              min="8"
-              max="80"
-              value={brushSize}
-              onChange={(event) => setBrushSize(Number(event.target.value))}
-              className="w-full accent-accent"
-            />
-          </div>
-        )}
-
-        <p className="text-sm text-muted-foreground">
-          {!photoLoaded
-            ? "No photo is ever uploaded — the preview is rendered locally in your browser."
-            : tool === "add"
-              ? "Drag over any spot the auto-detect missed to paint it by hand."
-              : tool === "erase"
-                ? "Drag over any spot that shouldn't be painted (like bedding) to remove it."
-                : mask
-                  ? "All matching walls painted. Try another color, or switch to Add/Erase to fix any spot by hand."
-                  : "Tap any wall — every matching wall in the room will be painted."}
-        </p>
       </section>
 
       <aside className="space-y-5">
         <div className="space-y-2">
-          <Label htmlFor="color-search">Sunburst color</Label>
-          <Input id="color-search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search name, code, or collection" />
-          <div className="max-h-72 overflow-y-auto rounded-md border border-border">
-            {colorsLoading ? (
-              <div className="flex items-center justify-center p-8 text-muted-foreground">
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Loading colors
-              </div>
-            ) : filteredColors.length ? (
-              filteredColors.map((color) => (
-                <button
-                  key={color.id}
-                  type="button"
-                  onClick={() => {
-                    setSelectedColor(color);
-                    setShowPaint(true);
-                  }}
-                  className={`flex w-full items-center gap-3 border-b border-border p-2.5 text-left last:border-0 ${
-                    selectedColor?.id === color.id ? "bg-accent/10" : "hover:bg-muted/60"
-                  }`}
-                >
-                  <span className="h-9 w-9 shrink-0 rounded border border-border" style={{ backgroundColor: color.hex }} />
-                  <span className="min-w-0">
-                    <span className="block truncate text-sm font-semibold">{color.name}</span>
-                    <span className="block text-xs text-muted-foreground">
-                      {color.code} · {color.collection}
-                    </span>
-                  </span>
-                </button>
-              ))
-            ) : (
-              <p className="p-5 text-center text-sm text-muted-foreground">No matching colors</p>
-            )}
+          <Label>Project type</Label>
+          <div className="grid grid-cols-2 gap-2">
+            {(["interior", "exterior"] as const).map(type => (
+              <button
+                key={type}
+                type="button"
+                onClick={() => setProjectType(type)}
+                className={`rounded-md border px-3 py-2 text-sm font-medium capitalize ${
+                  projectType === type ? "border-accent bg-accent/10" : "hover:bg-muted/60"
+                }`}
+              >
+                {type}
+              </button>
+            ))}
           </div>
         </div>
 
-        <div className="space-y-4 border-t border-border pt-4">
-          <div className="space-y-2">
-            <div className="flex justify-between text-sm">
-              <Label htmlFor="tolerance">Wall range</Label>
-              <span className="text-muted-foreground">{tolerance}</span>
-            </div>
-            <input
-              id="tolerance"
-              type="range"
-              min="10"
-              max="90"
-              value={tolerance}
-              onChange={(event) => setTolerance(Number(event.target.value))}
-              className="w-full accent-accent"
-            />
-          </div>
-          <div className="space-y-2">
-            <div className="flex justify-between text-sm">
-              <Label htmlFor="strength">Paint strength</Label>
-              <span className="text-muted-foreground">{strength}%</span>
-            </div>
-            <input
-              id="strength"
-              type="range"
-              min="30"
-              max="100"
-              value={strength}
-              onChange={(event) => setStrength(Number(event.target.value))}
-              className="w-full accent-accent"
-            />
+        <div className="space-y-2">
+          <Label htmlFor="surface">Paint area</Label>
+          <select
+            id="surface"
+            value={surface}
+            onChange={e => setSurface(e.target.value as Surface)}
+            className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+          >
+            <option value="walls">Walls</option>
+            <option value="ceiling">Ceiling</option>
+            <option value="trim">Trim</option>
+            <option value="roof">Roof</option>
+            <option value="walls-and-roof">Walls + Roof</option>
+          </select>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="color-search">SunBurst color</Label>
+          <Input
+            id="color-search"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search color, code, or collection"
+          />
+
+          <div className="max-h-72 overflow-y-auto rounded-md border">
+            {loading ? (
+              <div className="p-6 text-center text-sm text-muted-foreground">
+                <Loader2 className="mx-auto mb-2 h-4 w-4 animate-spin" /> Loading colors
+              </div>
+            ) : filteredColors.map(color => (
+              <button
+                key={color.id}
+                type="button"
+                onClick={() => setSelectedColor(color)}
+                className={`flex w-full items-center gap-3 border-b p-2.5 text-left last:border-0 ${
+                  selectedColor?.id === color.id ? "bg-accent/10" : "hover:bg-muted/60"
+                }`}
+              >
+                <span className="h-9 w-9 shrink-0 rounded border" style={{ backgroundColor: color.hex }} />
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-semibold">{color.name}</span>
+                  <span className="block text-xs text-muted-foreground">
+                    {color.code} · {color.collection} · {color.hex}
+                  </span>
+                </span>
+              </button>
+            ))}
           </div>
         </div>
+
+        {selectedColor && (
+          <div className="rounded-lg border bg-muted/30 p-4 text-sm">
+            <p className="font-semibold">{selectedColor.name}</p>
+            <p className="text-muted-foreground">
+              {selectedColor.code} · {selectedColor.hex}
+            </p>
+            <p className="mt-2 text-muted-foreground">
+              Exact SunBurst catalog HEX is sent to the server for the visualization.
+            </p>
+          </div>
+        )}
+
+        <Button className="w-full" size="lg" disabled={!originalImage || !selectedColor || generating} onClick={visualize}>
+          {generating ? (
+            <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Visualizing…</>
+          ) : (
+            <><Sparkles className="mr-2 h-4 w-4" /> Visualize my project</>
+          )}
+        </Button>
+
+        {resultImage && (
+          <p className="text-xs text-muted-foreground">
+            Showing {surfaceNames[surface]} in {selectedColor?.name}.
+          </p>
+        )}
       </aside>
     </div>
   );
