@@ -1,21 +1,12 @@
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ChangeEvent,
-  type PointerEvent as ReactPointerEvent,
-} from "react";
-import { Download, ImagePlus, Loader2, RotateCcw, Undo2 } from "lucide-react";
+import { useCallback, useEffect, useRef, useState, type ChangeEvent, type MouseEvent } from "react";
+import { Download, Eye, EyeOff, ImagePlus, Loader2, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Slider } from "@/components/ui/slider";
 
-interface PaintColor {
+interface VisualizerColor {
   id: string;
   code: string;
   name: string;
@@ -23,729 +14,233 @@ interface PaintColor {
   collection: string;
 }
 
-interface Seed {
-  x: number;
-  y: number;
+const MAX_IMAGE_EDGE = 1400;
+
+function hexToRgb(hex: string) {
+  const normalized = hex.replace("#", "");
+  const value = Number.parseInt(normalized.length === 3
+    ? normalized.split("").map((character) => character + character).join("")
+    : normalized, 16);
+  return { red: (value >> 16) & 255, green: (value >> 8) & 255, blue: value & 255 };
 }
-
-const MAX_EDGE = 1400;
-const FEATHER_RADIUS = 3;
-const CLOSE_RADIUS = 3;
-// Cap how far the fill can travel from a tap, as a fraction of the image's
-// larger dimension. Without this, an open doorway lets the fill leak into
-// whatever room lies beyond it whenever the two walls are lit similarly.
-const MAX_FILL_DISTANCE_RATIO = 0.32;
-
-/* ------------------------------------------------------------------ */
-/* Image helpers                                                       */
-/* ------------------------------------------------------------------ */
-
-function loadImageData(file: File): Promise<ImageData> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    const url = URL.createObjectURL(file);
-
-    img.onload = () => {
-      URL.revokeObjectURL(url);
-      const scale = Math.min(1, MAX_EDGE / Math.max(img.naturalWidth, img.naturalHeight));
-      const width = Math.max(1, Math.round(img.naturalWidth * scale));
-      const height = Math.max(1, Math.round(img.naturalHeight * scale));
-
-      const canvas = document.createElement("canvas");
-      canvas.width = width;
-      canvas.height = height;
-
-      const ctx = canvas.getContext("2d", { willReadFrequently: true });
-      if (!ctx) return reject(new Error("Could not prepare the photo."));
-
-      ctx.drawImage(img, 0, 0, width, height);
-      resolve(ctx.getImageData(0, 0, width, height));
-    };
-
-    img.onerror = () => {
-      URL.revokeObjectURL(url);
-      reject(new Error("Could not open that photo. Try a JPG or PNG."));
-    };
-
-    img.src = url;
-  });
-}
-
-function hexToRgb(hex: string): [number, number, number] {
-  let value = hex.replace("#", "").trim();
-  if (value.length === 3) {
-    value = value
-      .split("")
-      .map(c => c + c)
-      .join("");
-  }
-  const int = parseInt(value, 16);
-  if (Number.isNaN(int) || value.length !== 6) return [200, 200, 200];
-  return [(int >> 16) & 255, (int >> 8) & 255, int & 255];
-}
-
-function luminance(r: number, g: number, b: number) {
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
-}
-
-/* ------------------------------------------------------------------ */
-/* Selection                                                           */
-/* ------------------------------------------------------------------ */
-
-/**
- * Breadth-first flood fill seeded at a single point, capped by traversal
- * distance from the seed.
- *
- * Walls shift far more in brightness (shadow, falloff, bounce light) than in
- * hue, so the match test is loose on luminance and tight on chroma. A single
- * RGB distance threshold either stops at the first shadow or bleeds into the
- * furniture.
- *
- * The distance cap is the other half of that trade-off: an open doorway has
- * no color edge to stop at, so an uncapped fill happily paints the room
- * beyond it whenever the two walls are lit similarly. Capping how many hops
- * the fill can take from the tap keeps it inside the wall the person meant
- * to select without needing to detect doorways or edges explicitly.
- */
-function floodFill(
-  pixels: Uint8ClampedArray,
-  width: number,
-  height: number,
-  seed: Seed,
-  tolerance: number,
-  maxDistance: number,
-  visited: Uint8Array,
-  out: Uint8Array,
-  queueX: Int32Array,
-  queueY: Int32Array,
-  queueDist: Int32Array
-) {
-  const seedIndex = (seed.y * width + seed.x) * 4;
-  const sr = pixels[seedIndex];
-  const sg = pixels[seedIndex + 1];
-  const sb = pixels[seedIndex + 2];
-
-  const seedLum = luminance(sr, sg, sb);
-  const seedRg = sr - sg;
-  const seedGb = sg - sb;
-
-  const lumLimit = tolerance * 1.9;
-  const chromaLimit = Math.max(6, tolerance * 0.65);
-
-  const matches = (i: number) => {
-    const p = i * 4;
-    const r = pixels[p];
-    const g = pixels[p + 1];
-    const b = pixels[p + 2];
-    if (Math.abs(luminance(r, g, b) - seedLum) > lumLimit) return false;
-    if (Math.abs(r - g - seedRg) > chromaLimit) return false;
-    if (Math.abs(g - b - seedGb) > chromaLimit) return false;
-    return true;
-  };
-
-  let head = 0;
-  let tail = 0;
-  const seedI = seed.y * width + seed.x;
-
-  if (!visited[seedI] && matches(seedI)) {
-    visited[seedI] = 1;
-    out[seedI] = 1;
-    queueX[tail] = seed.x;
-    queueY[tail] = seed.y;
-    queueDist[tail] = 0;
-    tail++;
-  }
-
-  while (head < tail) {
-    const x = queueX[head];
-    const y = queueY[head];
-    const d = queueDist[head];
-    head++;
-    if (d >= maxDistance) continue;
-
-    const nx0 = x - 1;
-    const nx1 = x + 1;
-    const ny0 = y - 1;
-    const ny1 = y + 1;
-
-    if (nx0 >= 0) {
-      const ni = y * width + nx0;
-      if (!visited[ni] && matches(ni)) {
-        visited[ni] = 1;
-        out[ni] = 1;
-        queueX[tail] = nx0;
-        queueY[tail] = y;
-        queueDist[tail] = d + 1;
-        tail++;
-      }
-    }
-    if (nx1 < width) {
-      const ni = y * width + nx1;
-      if (!visited[ni] && matches(ni)) {
-        visited[ni] = 1;
-        out[ni] = 1;
-        queueX[tail] = nx1;
-        queueY[tail] = y;
-        queueDist[tail] = d + 1;
-        tail++;
-      }
-    }
-    if (ny0 >= 0) {
-      const ni = ny0 * width + x;
-      if (!visited[ni] && matches(ni)) {
-        visited[ni] = 1;
-        out[ni] = 1;
-        queueX[tail] = x;
-        queueY[tail] = ny0;
-        queueDist[tail] = d + 1;
-        tail++;
-      }
-    }
-    if (ny1 < height) {
-      const ni = ny1 * width + x;
-      if (!visited[ni] && matches(ni)) {
-        visited[ni] = 1;
-        out[ni] = 1;
-        queueX[tail] = x;
-        queueY[tail] = ny1;
-        queueDist[tail] = d + 1;
-        tail++;
-      }
-    }
-  }
-}
-
-/** Sliding-window max (dilate) or min (erode) pass, applied horizontally then vertically. */
-function morphPass(
-  mask: Uint8Array,
-  width: number,
-  height: number,
-  radius: number,
-  mode: "max" | "min"
-): Uint8Array {
-  const horizontal = new Uint8Array(width * height);
-  for (let y = 0; y < height; y++) {
-    const row = y * width;
-    for (let x = 0; x < width; x++) {
-      let v = mode === "max" ? 0 : 1;
-      for (let dx = -radius; dx <= radius; dx++) {
-        const xx = Math.min(width - 1, Math.max(0, x + dx));
-        const val = mask[row + xx];
-        v = mode === "max" ? Math.max(v, val) : Math.min(v, val);
-      }
-      horizontal[row + x] = v;
-    }
-  }
-
-  const result = new Uint8Array(width * height);
-  for (let x = 0; x < width; x++) {
-    for (let y = 0; y < height; y++) {
-      let v = mode === "max" ? 0 : 1;
-      for (let dy = -radius; dy <= radius; dy++) {
-        const yy = Math.min(height - 1, Math.max(0, y + dy));
-        const val = horizontal[yy * width + x];
-        v = mode === "max" ? Math.max(v, val) : Math.min(v, val);
-      }
-      result[y * width + x] = v;
-    }
-  }
-
-  return result;
-}
-
-/**
- * Morphological closing: dilate then erode by the same radius. Fills small
- * pinhole gaps inside the selection (JPEG noise, subtle gradients that fail
- * the color match by a hair) without expanding the outer boundary of the
- * selection, which is what caused the wall to paint in scattered patches
- * instead of one continuous area.
- */
-function closeMask(mask: Uint8Array, width: number, height: number, radius: number): Uint8Array {
-  const dilated = morphPass(mask, width, height, radius, "max");
-  return morphPass(dilated, width, height, radius, "min");
-}
-
-/** Separable box blur so the mask edge fades instead of cutting a hard line. */
-function feather(mask: Uint8Array, width: number, height: number, radius: number): Float32Array {
-  const horizontal = new Float32Array(width * height);
-  const result = new Float32Array(width * height);
-  const window = radius * 2 + 1;
-
-  for (let y = 0; y < height; y++) {
-    const row = y * width;
-    let sum = 0;
-    for (let x = -radius; x <= radius; x++) {
-      sum += mask[row + Math.min(width - 1, Math.max(0, x))];
-    }
-    for (let x = 0; x < width; x++) {
-      horizontal[row + x] = sum / window;
-      const drop = row + Math.min(width - 1, Math.max(0, x - radius));
-      const add = row + Math.min(width - 1, Math.max(0, x + radius + 1));
-      sum += mask[add] - mask[drop];
-    }
-  }
-
-  for (let x = 0; x < width; x++) {
-    let sum = 0;
-    for (let y = -radius; y <= radius; y++) {
-      sum += horizontal[Math.min(height - 1, Math.max(0, y)) * width + x];
-    }
-    for (let y = 0; y < height; y++) {
-      result[y * width + x] = sum / window;
-      const drop = Math.min(height - 1, Math.max(0, y - radius)) * width + x;
-      const add = Math.min(height - 1, Math.max(0, y + radius + 1)) * width + x;
-      sum += horizontal[add] - horizontal[drop];
-    }
-  }
-
-  return result;
-}
-
-/* ------------------------------------------------------------------ */
-/* Component                                                           */
-/* ------------------------------------------------------------------ */
 
 export function RoomVisualizer() {
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const sourceRef = useRef<ImageData | null>(null);
-  const maskRef = useRef<Float32Array | null>(null);
-
-  const [colors, setColors] = useState<PaintColor[]>([]);
-  const [selectedColor, setSelectedColor] = useState<PaintColor | null>(null);
+  const sourceCanvasRef = useRef<HTMLCanvasElement>(null);
+  const previewCanvasRef = useRef<HTMLCanvasElement>(null);
+  const [colors, setColors] = useState<VisualizerColor[]>([]);
+  const [colorsLoading, setColorsLoading] = useState(true);
+  const [photoLoaded, setPhotoLoaded] = useState(false);
+  const [selectedColor, setSelectedColor] = useState<VisualizerColor | null>(null);
   const [search, setSearch] = useState("");
-
-  const [hasPhoto, setHasPhoto] = useState(false);
-  const [seeds, setSeeds] = useState<Seed[]>([]);
-  const [tolerance, setTolerance] = useState(28);
-  const [strength, setStrength] = useState(92);
-  const [showBefore, setShowBefore] = useState(false);
-
-  const [loadingColors, setLoadingColors] = useState(true);
-  const [selecting, setSelecting] = useState(false);
-
-  /* ---------------- catalog ---------------- */
+  const [tolerance, setTolerance] = useState(38);
+  const [strength, setStrength] = useState(72);
+  const [seed, setSeed] = useState<{ x: number; y: number } | null>(null);
+  const [mask, setMask] = useState<Uint8Array | null>(null);
+  const [showPaint, setShowPaint] = useState(true);
 
   useEffect(() => {
-    let cancelled = false;
-
     supabase
       .from("paint_colors")
       .select("id,code,name,hex,collection")
       .eq("active", true)
       .order("name")
       .then(({ data, error }) => {
-        if (cancelled) return;
-        if (error) {
-          console.error("paint_colors query failed:", error);
-          toast.error("Could not load the Sunburst catalog. Refresh to try again.");
-        } else {
-          const list = (data ?? []) as PaintColor[];
-          setColors(list);
-          setSelectedColor(list[0] ?? null);
-        }
-        setLoadingColors(false);
+        if (error) toast.error("Could not load the Sunburst colors");
+        const availableColors = (data ?? []) as VisualizerColor[];
+        setColors(availableColors);
+        setSelectedColor(availableColors[0] ?? null);
+        setColorsLoading(false);
       });
-
-    return () => {
-      cancelled = true;
-    };
   }, []);
 
-  const filteredColors = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return colors.slice(0, 120);
-    return colors
-      .filter(
-        c =>
-          c.name.toLowerCase().includes(q) ||
-          c.code.toLowerCase().includes(q) ||
-          c.collection.toLowerCase().includes(q)
-      )
-      .slice(0, 120);
-  }, [colors, search]);
+  const renderPreview = useCallback(() => {
+    const source = sourceCanvasRef.current;
+    const preview = previewCanvasRef.current;
+    if (!source || !preview) return;
+    const sourceContext = source.getContext("2d", { willReadFrequently: true });
+    const previewContext = preview.getContext("2d");
+    if (!sourceContext || !previewContext) return;
 
-  /* ---------------- painting ---------------- */
-
-  const render = useCallback(() => {
-    const canvas = canvasRef.current;
-    const source = sourceRef.current;
-    if (!canvas || !source) return;
-
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
-    const mask = maskRef.current;
-
-    if (showBefore || !mask || !selectedColor) {
-      ctx.putImageData(source, 0, 0);
-      return;
-    }
-
-    const src = source.data;
-    const output = new ImageData(new Uint8ClampedArray(src), source.width, source.height);
-    const dst = output.data;
-
-    const [tr, tg, tb] = hexToRgb(selectedColor.hex);
-    const opacity = strength / 100;
-
-    // Mean brightness of the selection becomes the reference point, so each
-    // pixel keeps its own shading as a ratio against it.
-    let sum = 0;
-    let count = 0;
-    for (let i = 0; i < mask.length; i++) {
-      const a = mask[i];
-      if (a <= 0.01) continue;
-      const p = i * 4;
-      sum += luminance(src[p], src[p + 1], src[p + 2]) * a;
-      count += a;
-    }
-    if (!count) {
-      ctx.putImageData(source, 0, 0);
-      return;
-    }
-    const mean = sum / count;
-
-    for (let i = 0; i < mask.length; i++) {
-      const a = mask[i];
-      if (a <= 0.01) continue;
-
-      const p = i * 4;
-      const r = src[p];
-      const g = src[p + 1];
-      const b = src[p + 2];
-
-      // +12 keeps deep shadows from collapsing to pure black.
-      const ratio = (luminance(r, g, b) + 12) / (mean + 12);
-      const blend = a * opacity;
-
-      dst[p] = r + (Math.min(255, tr * ratio) - r) * blend;
-      dst[p + 1] = g + (Math.min(255, tg * ratio) - g) * blend;
-      dst[p + 2] = b + (Math.min(255, tb * ratio) - b) * blend;
-    }
-
-    ctx.putImageData(output, 0, 0);
-  }, [selectedColor, showBefore, strength]);
-
-  /* Rebuild the mask whenever the seeds or tolerance change. */
-  useEffect(() => {
-    const source = sourceRef.current;
-    if (!source) return;
-
-    if (!seeds.length) {
-      maskRef.current = null;
-      render();
-      return;
-    }
-
-    setSelecting(true);
-    const handle = window.setTimeout(() => {
-      const { width, height, data } = source;
-      const cellCount = width * height;
-
-      const binary = new Uint8Array(cellCount);
-      const visited = new Uint8Array(cellCount);
-      const queueX = new Int32Array(cellCount);
-      const queueY = new Int32Array(cellCount);
-      const queueDist = new Int32Array(cellCount);
-      const maxDistance = Math.round(Math.max(width, height) * MAX_FILL_DISTANCE_RATIO);
-
-      for (const seed of seeds) {
-        floodFill(
-          data,
-          width,
-          height,
-          seed,
-          tolerance,
-          maxDistance,
-          visited,
-          binary,
-          queueX,
-          queueY,
-          queueDist
-        );
+    preview.width = source.width;
+    preview.height = source.height;
+    const image = sourceContext.getImageData(0, 0, source.width, source.height);
+    if (showPaint && mask && selectedColor) {
+      const paint = hexToRgb(selectedColor.hex);
+      const amount = strength / 100;
+      for (let pixel = 0; pixel < mask.length; pixel += 1) {
+        if (!mask[pixel]) continue;
+        const offset = pixel * 4;
+        const luminance = (image.data[offset] * 0.2126 + image.data[offset + 1] * 0.7152 + image.data[offset + 2] * 0.0722) / 255;
+        const light = 0.35 + luminance * 0.9;
+        const targetRed = Math.min(255, paint.red * light);
+        const targetGreen = Math.min(255, paint.green * light);
+        const targetBlue = Math.min(255, paint.blue * light);
+        image.data[offset] = image.data[offset] * (1 - amount) + targetRed * amount;
+        image.data[offset + 1] = image.data[offset + 1] * (1 - amount) + targetGreen * amount;
+        image.data[offset + 2] = image.data[offset + 2] * (1 - amount) + targetBlue * amount;
       }
+    }
+    previewContext.putImageData(image, 0, 0);
+  }, [mask, selectedColor, showPaint, strength]);
 
-      const closed = closeMask(binary, width, height, CLOSE_RADIUS);
-      maskRef.current = feather(closed, width, height, FEATHER_RADIUS);
-      setSelecting(false);
-      render();
-    }, 30);
+  useEffect(() => renderPreview(), [renderPreview]);
 
-    return () => window.clearTimeout(handle);
-  }, [seeds, tolerance, render]);
+  const buildMask = useCallback((x: number, y: number) => {
+    const source = sourceCanvasRef.current;
+    const context = source?.getContext("2d", { willReadFrequently: true });
+    if (!source || !context) return;
+    const { width, height } = source;
+    const image = context.getImageData(0, 0, width, height).data;
+    const startPixel = y * width + x;
+    const startOffset = startPixel * 4;
+    const target = [image[startOffset], image[startOffset + 1], image[startOffset + 2]];
+    const selected = new Uint8Array(width * height);
+    const visited = new Uint8Array(width * height);
+    const queue = new Int32Array(width * height);
+    let head = 0;
+    let tail = 1;
+    queue[0] = startPixel;
+    visited[startPixel] = 1;
 
-  /* Recolor passes are cheap, so color and strength repaint immediately. */
+    while (head < tail) {
+      const pixel = queue[head++];
+      const offset = pixel * 4;
+      const distance = Math.sqrt(
+        (image[offset] - target[0]) ** 2 +
+        (image[offset + 1] - target[1]) ** 2 +
+        (image[offset + 2] - target[2]) ** 2,
+      );
+      if (distance > tolerance) continue;
+      selected[pixel] = 1;
+      const px = pixel % width;
+      const neighbors = [pixel - width, pixel + width];
+      if (px > 0) neighbors.push(pixel - 1);
+      if (px < width - 1) neighbors.push(pixel + 1);
+      for (const neighbor of neighbors) {
+        if (neighbor >= 0 && neighbor < visited.length && !visited[neighbor]) {
+          visited[neighbor] = 1;
+          queue[tail++] = neighbor;
+        }
+      }
+    }
+    setMask(selected);
+  }, [tolerance]);
+
   useEffect(() => {
-    render();
-  }, [render]);
+    if (seed) buildMask(seed.x, seed.y);
+  }, [buildMask, seed]);
 
-  /* ---------------- interactions ---------------- */
-
-  const upload = async (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    e.target.value = "";
+  const loadPhoto = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
     if (!file) return;
-
-    if (!file.type.startsWith("image/")) {
-      toast.error("Choose an image file.");
-      return;
-    }
-
-    try {
-      const imageData = await loadImageData(file);
-      sourceRef.current = imageData;
-      maskRef.current = null;
-
-      const canvas = canvasRef.current;
-      if (canvas) {
-        canvas.width = imageData.width;
-        canvas.height = imageData.height;
-        canvas.getContext("2d")?.putImageData(imageData, 0, 0);
-      }
-
-      setSeeds([]);
-      setShowBefore(false);
-      setHasPhoto(true);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not load that photo.");
-    }
+    if (!file.type.startsWith("image/")) return toast.error("Choose a photo file");
+    const image = new Image();
+    const url = URL.createObjectURL(file);
+    image.onload = () => {
+      const source = sourceCanvasRef.current;
+      const preview = previewCanvasRef.current;
+      if (!source || !preview) return;
+      const scale = Math.min(1, MAX_IMAGE_EDGE / Math.max(image.width, image.height));
+      source.width = Math.round(image.width * scale);
+      source.height = Math.round(image.height * scale);
+      const context = source.getContext("2d", { willReadFrequently: true });
+      context?.drawImage(image, 0, 0, source.width, source.height);
+      preview.width = source.width;
+      preview.height = source.height;
+      preview.getContext("2d")?.drawImage(source, 0, 0);
+      setPhotoLoaded(true);
+      setSeed(null);
+      setMask(null);
+      URL.revokeObjectURL(url);
+    };
+    image.onerror = () => {
+      URL.revokeObjectURL(url);
+      toast.error("Could not open that photo");
+    };
+    image.src = url;
+    event.target.value = "";
   };
 
-  const addSeed = (e: ReactPointerEvent<HTMLCanvasElement>) => {
-    const canvas = canvasRef.current;
-    const source = sourceRef.current;
-    if (!canvas || !source || showBefore) return;
-
-    const rect = canvas.getBoundingClientRect();
-    const x = Math.round(((e.clientX - rect.left) / rect.width) * source.width);
-    const y = Math.round(((e.clientY - rect.top) / rect.height) * source.height);
-
-    if (x < 0 || y < 0 || x >= source.width || y >= source.height) return;
-    setSeeds(prev => [...prev, { x, y }]);
+  const selectWall = (event: MouseEvent<HTMLCanvasElement>) => {
+    const canvas = previewCanvasRef.current;
+    if (!canvas || !photoLoaded) return;
+    const bounds = canvas.getBoundingClientRect();
+    setSeed({
+      x: Math.max(0, Math.min(canvas.width - 1, Math.floor((event.clientX - bounds.left) * canvas.width / bounds.width))),
+      y: Math.max(0, Math.min(canvas.height - 1, Math.floor((event.clientY - bounds.top) * canvas.height / bounds.height))),
+    });
+    setShowPaint(true);
   };
 
   const download = () => {
-    const canvas = canvasRef.current;
-    if (!canvas || !hasPhoto) return;
-
-    const wasBefore = showBefore;
-    if (wasBefore) setShowBefore(false);
-
-    window.requestAnimationFrame(() => {
-      canvas.toBlob(blob => {
-        if (!blob) {
-          toast.error("Could not export the image.");
-          return;
-        }
-        const slug =
-          selectedColor?.name
-            .replace(/[^a-z0-9]+/gi, "-")
-            .replace(/^-|-$/g, "")
-            .toLowerCase() || "sunburst";
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `${slug}-room-preview.png`;
-        a.click();
-        URL.revokeObjectURL(url);
-        if (wasBefore) setShowBefore(true);
-      }, "image/png");
-    });
+    const canvas = previewCanvasRef.current;
+    if (!canvas || !photoLoaded) return;
+    const link = document.createElement("a");
+    link.download = `${selectedColor?.name ?? "Sunburst-color"}-room-preview.png`;
+    link.href = canvas.toDataURL("image/png");
+    link.click();
   };
 
-  const hasSelection = seeds.length > 0;
+  const filteredColors = colors.filter((color) => {
+    const query = search.trim().toLowerCase();
+    return !query || color.name.toLowerCase().includes(query) || color.code.toLowerCase().includes(query);
+  }).slice(0, 80);
 
   return (
-    <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
+    <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_300px]">
       <section className="space-y-3">
-        <div className="relative flex min-h-80 items-center justify-center overflow-hidden rounded-lg border bg-muted/40">
-          {!hasPhoto && (
-            <label className="flex min-h-80 w-full cursor-pointer flex-col items-center justify-center gap-3 p-6 text-center">
-              <ImagePlus className="h-8 w-8 text-accent" />
-              <span className="font-semibold">Add a room photo</span>
-              <span className="max-w-md text-sm text-muted-foreground">
-                Take a photo or choose one from this device. Everything stays in the browser — the
-                photo is never uploaded.
-              </span>
-              <input
-                type="file"
-                accept="image/*"
-                capture="environment"
-                onChange={upload}
-                className="hidden"
-              />
+        <div className="relative flex min-h-80 items-center justify-center overflow-hidden rounded-lg border border-border bg-muted/40">
+          <canvas ref={sourceCanvasRef} className="hidden" />
+          <canvas
+            ref={previewCanvasRef}
+            onClick={selectWall}
+            className={`max-h-[620px] w-full object-contain ${photoLoaded ? "cursor-crosshair" : "hidden"}`}
+            aria-label="Room color preview. Click a wall to paint it."
+          />
+          {!photoLoaded && (
+            <label className="flex min-h-80 w-full cursor-pointer flex-col items-center justify-center gap-3 text-center">
+              <span className="flex h-12 w-12 items-center justify-center rounded-full bg-accent/15 text-accent"><ImagePlus className="h-6 w-6" /></span>
+              <span className="font-semibold text-foreground">Upload or take a room photo</span>
+              <span className="max-w-xs text-sm text-muted-foreground">Use a clear photo where the wall is visible and evenly lit.</span>
+              <input type="file" accept="image/*" capture="environment" onChange={loadPhoto} className="hidden" />
             </label>
           )}
-
-          <canvas
-            ref={canvasRef}
-            onPointerDown={addSeed}
-            className={`max-h-[680px] w-full touch-manipulation object-contain ${
-              hasPhoto ? "cursor-crosshair" : "hidden"
-            }`}
-          />
-
-          {hasPhoto && !hasSelection && (
-            <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-background/85 p-3 text-center text-sm font-medium backdrop-blur-sm">
-              Tap the wall to select it
-            </div>
-          )}
-
-          {selecting && (
-            <div className="pointer-events-none absolute right-3 top-3 flex items-center gap-2 rounded-md bg-background/85 px-3 py-1.5 text-xs font-medium backdrop-blur-sm">
-              <Loader2 className="h-3.5 w-3.5 animate-spin text-accent" /> Selecting
-            </div>
-          )}
         </div>
-
-        {hasPhoto && (
+        {photoLoaded && (
           <div className="flex flex-wrap items-center gap-2">
-            <Button variant="outline" size="sm" asChild>
-              <label className="cursor-pointer">
-                <ImagePlus className="mr-1.5 h-4 w-4" /> New photo
-                <input
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  onChange={upload}
-                  className="hidden"
-                />
-              </label>
-            </Button>
-
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={!hasSelection}
-              onClick={() => setSeeds(prev => prev.slice(0, -1))}
-            >
-              <Undo2 className="mr-1.5 h-4 w-4" /> Undo area
-            </Button>
-
-            <Button variant="outline" size="sm" disabled={!hasSelection} onClick={() => setSeeds([])}>
-              <RotateCcw className="mr-1.5 h-4 w-4" /> Reset
-            </Button>
-
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={!hasSelection}
-              onClick={() => setShowBefore(v => !v)}
-            >
-              {showBefore ? "Show after" : "Show before"}
-            </Button>
-
-            <Button className="ml-auto" size="sm" disabled={!hasSelection} onClick={download}>
-              <Download className="mr-1.5 h-4 w-4" /> Download
-            </Button>
+            <Button variant="outline" size="sm" asChild><label className="cursor-pointer"><ImagePlus className="mr-1.5 h-4 w-4" />New photo<input type="file" accept="image/*" capture="environment" onChange={loadPhoto} className="hidden" /></label></Button>
+            <Button variant="outline" size="sm" onClick={() => { setSeed(null); setMask(null); }} disabled={!mask}><RotateCcw className="mr-1.5 h-4 w-4" />Reset wall</Button>
+            <Button variant="outline" size="sm" onClick={() => setShowPaint((visible) => !visible)} disabled={!mask}>{showPaint ? <EyeOff className="mr-1.5 h-4 w-4" /> : <Eye className="mr-1.5 h-4 w-4" />}{showPaint ? "Before" : "After"}</Button>
+            <Button size="sm" onClick={download} disabled={!mask} className="ml-auto"><Download className="mr-1.5 h-4 w-4" />Download</Button>
           </div>
         )}
-
-        {hasPhoto && (
-          <p className="text-xs text-muted-foreground">
-            Tap more than once to add adjoining walls. If the color spreads onto furniture, lower the
-            edge tolerance; if patches of wall stay unpainted, raise it.
-          </p>
-        )}
+        <p className="text-sm text-muted-foreground">{mask ? "Wall selected. Try colors or adjust the controls." : photoLoaded ? "Tap the middle of the wall you want to paint." : "Your photo stays on this device."}</p>
       </section>
 
       <aside className="space-y-5">
         <div className="space-y-2">
           <Label htmlFor="color-search">Sunburst color</Label>
-          <Input
-            id="color-search"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Search name, code, or collection"
-          />
-
-          <div className="max-h-72 overflow-y-auto rounded-md border">
-            {loadingColors ? (
-              <div className="p-6 text-center text-sm text-muted-foreground">
-                <Loader2 className="mx-auto mb-2 h-4 w-4 animate-spin" /> Loading colors
-              </div>
-            ) : filteredColors.length === 0 ? (
-              <div className="p-6 text-center text-sm text-muted-foreground">
-                No colors match that search.
-              </div>
-            ) : (
-              filteredColors.map(color => (
-                <button
-                  key={color.id}
-                  type="button"
-                  onClick={() => setSelectedColor(color)}
-                  className={`flex w-full items-center gap-3 border-b p-2.5 text-left last:border-0 ${
-                    selectedColor?.id === color.id ? "bg-accent/10" : "hover:bg-muted/60"
-                  }`}
-                >
-                  <span
-                    className="h-9 w-9 shrink-0 rounded border"
-                    style={{ backgroundColor: color.hex }}
-                  />
-                  <span className="min-w-0">
-                    <span className="block truncate text-sm font-semibold">{color.name}</span>
-                    <span className="block truncate text-xs text-muted-foreground">
-                      {color.code} · {color.collection}
-                    </span>
-                  </span>
-                </button>
-              ))
-            )}
+          <Input id="color-search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search name or code" />
+          <div className="max-h-72 overflow-y-auto rounded-md border border-border">
+            {colorsLoading ? (
+              <div className="flex items-center justify-center p-8 text-muted-foreground"><Loader2 className="mr-2 h-4 w-4 animate-spin" />Loading colors</div>
+            ) : filteredColors.length ? filteredColors.map((color) => (
+              <button
+                key={color.id}
+                type="button"
+                onClick={() => { setSelectedColor(color); setShowPaint(true); }}
+                className={`flex w-full items-center gap-3 border-b border-border p-2.5 text-left last:border-0 ${selectedColor?.id === color.id ? "bg-accent/10" : "hover:bg-muted/60"}`}
+              >
+                <span className="h-9 w-9 shrink-0 rounded border border-border" style={{ backgroundColor: color.hex }} />
+                <span className="min-w-0"><span className="block truncate text-sm font-semibold">{color.name}</span><span className="block text-xs text-muted-foreground">{color.code} · {color.collection}</span></span>
+              </button>
+            )) : <p className="p-5 text-center text-sm text-muted-foreground">No matching colors</p>}
           </div>
         </div>
-
-        <div className="space-y-2">
-          <div className="flex items-baseline justify-between">
-            <Label htmlFor="tolerance">Edge tolerance</Label>
-            <span className="text-xs text-muted-foreground">{tolerance}</span>
-          </div>
-          <Slider
-            id="tolerance"
-            min={6}
-            max={70}
-            step={1}
-            value={[tolerance]}
-            onValueChange={([v]) => setTolerance(v)}
-            disabled={!hasPhoto}
-          />
+        <div className="space-y-4 border-t border-border pt-4">
+          <div className="space-y-2"><div className="flex justify-between text-sm"><Label htmlFor="tolerance">Wall range</Label><span className="text-muted-foreground">{tolerance}</span></div><input id="tolerance" type="range" min="10" max="90" value={tolerance} onChange={(event) => setTolerance(Number(event.target.value))} className="w-full accent-accent" /></div>
+          <div className="space-y-2"><div className="flex justify-between text-sm"><Label htmlFor="strength">Paint strength</Label><span className="text-muted-foreground">{strength}%</span></div><input id="strength" type="range" min="30" max="100" value={strength} onChange={(event) => setStrength(Number(event.target.value))} className="w-full accent-accent" /></div>
         </div>
-
-        <div className="space-y-2">
-          <div className="flex items-baseline justify-between">
-            <Label htmlFor="strength">Paint strength</Label>
-            <span className="text-xs text-muted-foreground">{strength}%</span>
-          </div>
-          <Slider
-            id="strength"
-            min={20}
-            max={100}
-            step={1}
-            value={[strength]}
-            onValueChange={([v]) => setStrength(v)}
-            disabled={!hasPhoto}
-          />
-        </div>
-
-        {selectedColor && (
-          <div className="rounded-lg border bg-muted/30 p-4 text-sm">
-            <div className="flex items-center gap-3">
-              <span
-                className="h-10 w-10 shrink-0 rounded border"
-                style={{ backgroundColor: selectedColor.hex }}
-              />
-              <div className="min-w-0">
-                <p className="truncate font-semibold">{selectedColor.name}</p>
-                <p className="truncate text-muted-foreground">
-                  {selectedColor.code} · {selectedColor.hex.toUpperCase()}
-                </p>
-              </div>
-            </div>
-            <p className="mt-3 text-muted-foreground">
-              The preview keeps the room's original light and shadow, so the painted wall reads
-              darker in corners than the flat swatch.
-            </p>
-          </div>
-        )}
       </aside>
     </div>
   );
