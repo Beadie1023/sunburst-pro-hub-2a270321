@@ -29,7 +29,12 @@ interface Seed {
 }
 
 const MAX_EDGE = 1400;
-const FEATHER_RADIUS = 2;
+const FEATHER_RADIUS = 3;
+const CLOSE_RADIUS = 3;
+// Cap how far the fill can travel from a tap, as a fraction of the image's
+// larger dimension. Without this, an open doorway lets the fill leak into
+// whatever room lies beyond it whenever the two walls are lit similarly.
+const MAX_FILL_DISTANCE_RATIO = 0.32;
 
 /* ------------------------------------------------------------------ */
 /* Image helpers                                                       */
@@ -88,12 +93,19 @@ function luminance(r: number, g: number, b: number) {
 /* ------------------------------------------------------------------ */
 
 /**
- * Scanline flood fill seeded at a single point.
+ * Breadth-first flood fill seeded at a single point, capped by traversal
+ * distance from the seed.
  *
  * Walls shift far more in brightness (shadow, falloff, bounce light) than in
  * hue, so the match test is loose on luminance and tight on chroma. A single
  * RGB distance threshold either stops at the first shadow or bleeds into the
  * furniture.
+ *
+ * The distance cap is the other half of that trade-off: an open doorway has
+ * no color edge to stop at, so an uncapped fill happily paints the room
+ * beyond it whenever the two walls are lit similarly. Capping how many hops
+ * the fill can take from the tap keeps it inside the wall the person meant
+ * to select without needing to detect doorways or edges explicitly.
  */
 function floodFill(
   pixels: Uint8ClampedArray,
@@ -101,7 +113,12 @@ function floodFill(
   height: number,
   seed: Seed,
   tolerance: number,
-  out: Uint8Array
+  maxDistance: number,
+  visited: Uint8Array,
+  out: Uint8Array,
+  queueX: Int32Array,
+  queueY: Int32Array,
+  queueDist: Int32Array
 ) {
   const seedIndex = (seed.y * width + seed.x) * 4;
   const sr = pixels[seedIndex];
@@ -115,10 +132,7 @@ function floodFill(
   const lumLimit = tolerance * 1.9;
   const chromaLimit = Math.max(6, tolerance * 0.65);
 
-  const visited = new Uint8Array(width * height);
-
   const matches = (i: number) => {
-    if (visited[i]) return false;
     const p = i * 4;
     const r = pixels[p];
     const g = pixels[p + 1];
@@ -129,42 +143,126 @@ function floodFill(
     return true;
   };
 
-  const stack: number[] = [seed.y * width + seed.x];
+  let head = 0;
+  let tail = 0;
+  const seedI = seed.y * width + seed.x;
 
-  while (stack.length) {
-    const index = stack.pop() as number;
-    if (visited[index]) continue;
-    if (!matches(index)) continue;
+  if (!visited[seedI] && matches(seedI)) {
+    visited[seedI] = 1;
+    out[seedI] = 1;
+    queueX[tail] = seed.x;
+    queueY[tail] = seed.y;
+    queueDist[tail] = 0;
+    tail++;
+  }
 
-    const y = Math.floor(index / width);
-    const rowStart = y * width;
+  while (head < tail) {
+    const x = queueX[head];
+    const y = queueY[head];
+    const d = queueDist[head];
+    head++;
+    if (d >= maxDistance) continue;
 
-    let left = index - rowStart;
-    while (left > 0 && matches(rowStart + left - 1)) left--;
+    const nx0 = x - 1;
+    const nx1 = x + 1;
+    const ny0 = y - 1;
+    const ny1 = y + 1;
 
-    let right = index - rowStart;
-    while (right < width - 1 && matches(rowStart + right + 1)) right++;
-
-    for (let x = left; x <= right; x++) {
-      visited[rowStart + x] = 1;
-      out[rowStart + x] = 1;
+    if (nx0 >= 0) {
+      const ni = y * width + nx0;
+      if (!visited[ni] && matches(ni)) {
+        visited[ni] = 1;
+        out[ni] = 1;
+        queueX[tail] = nx0;
+        queueY[tail] = y;
+        queueDist[tail] = d + 1;
+        tail++;
+      }
     }
-
-    for (const ny of [y - 1, y + 1]) {
-      if (ny < 0 || ny >= height) continue;
-      const nRow = ny * width;
-      let inRun = false;
-      for (let x = left; x <= right; x++) {
-        const ok = matches(nRow + x);
-        if (ok && !inRun) {
-          stack.push(nRow + x);
-          inRun = true;
-        } else if (!ok) {
-          inRun = false;
-        }
+    if (nx1 < width) {
+      const ni = y * width + nx1;
+      if (!visited[ni] && matches(ni)) {
+        visited[ni] = 1;
+        out[ni] = 1;
+        queueX[tail] = nx1;
+        queueY[tail] = y;
+        queueDist[tail] = d + 1;
+        tail++;
+      }
+    }
+    if (ny0 >= 0) {
+      const ni = ny0 * width + x;
+      if (!visited[ni] && matches(ni)) {
+        visited[ni] = 1;
+        out[ni] = 1;
+        queueX[tail] = x;
+        queueY[tail] = ny0;
+        queueDist[tail] = d + 1;
+        tail++;
+      }
+    }
+    if (ny1 < height) {
+      const ni = ny1 * width + x;
+      if (!visited[ni] && matches(ni)) {
+        visited[ni] = 1;
+        out[ni] = 1;
+        queueX[tail] = x;
+        queueY[tail] = ny1;
+        queueDist[tail] = d + 1;
+        tail++;
       }
     }
   }
+}
+
+/** Sliding-window max (dilate) or min (erode) pass, applied horizontally then vertically. */
+function morphPass(
+  mask: Uint8Array,
+  width: number,
+  height: number,
+  radius: number,
+  mode: "max" | "min"
+): Uint8Array {
+  const horizontal = new Uint8Array(width * height);
+  for (let y = 0; y < height; y++) {
+    const row = y * width;
+    for (let x = 0; x < width; x++) {
+      let v = mode === "max" ? 0 : 1;
+      for (let dx = -radius; dx <= radius; dx++) {
+        const xx = Math.min(width - 1, Math.max(0, x + dx));
+        const val = mask[row + xx];
+        v = mode === "max" ? Math.max(v, val) : Math.min(v, val);
+      }
+      horizontal[row + x] = v;
+    }
+  }
+
+  const result = new Uint8Array(width * height);
+  for (let x = 0; x < width; x++) {
+    for (let y = 0; y < height; y++) {
+      let v = mode === "max" ? 0 : 1;
+      for (let dy = -radius; dy <= radius; dy++) {
+        const yy = Math.min(height - 1, Math.max(0, y + dy));
+        const val = horizontal[yy * width + x];
+        v = mode === "max" ? Math.max(v, val) : Math.min(v, val);
+      }
+      result[y * width + x] = v;
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Morphological closing: dilate then erode by the same radius. Fills small
+ * pinhole gaps inside the selection (JPEG noise, subtle gradients that fail
+ * the color match by a hair) without expanding the outer boundary of the
+ * selection, which is what caused the wall to paint in scattered patches
+ * instead of one continuous area.
+ */
+function closeMask(mask: Uint8Array, width: number, height: number, radius: number): Uint8Array {
+  const dilated = morphPass(mask, width, height, radius, "max");
+  return morphPass(dilated, width, height, radius, "min");
 }
 
 /** Separable box blur so the mask edge fades instead of cutting a hard line. */
@@ -342,11 +440,33 @@ export function RoomVisualizer() {
     setSelecting(true);
     const handle = window.setTimeout(() => {
       const { width, height, data } = source;
-      const binary = new Uint8Array(width * height);
+      const cellCount = width * height;
+
+      const binary = new Uint8Array(cellCount);
+      const visited = new Uint8Array(cellCount);
+      const queueX = new Int32Array(cellCount);
+      const queueY = new Int32Array(cellCount);
+      const queueDist = new Int32Array(cellCount);
+      const maxDistance = Math.round(Math.max(width, height) * MAX_FILL_DISTANCE_RATIO);
+
       for (const seed of seeds) {
-        floodFill(data, width, height, seed, tolerance, binary);
+        floodFill(
+          data,
+          width,
+          height,
+          seed,
+          tolerance,
+          maxDistance,
+          visited,
+          binary,
+          queueX,
+          queueY,
+          queueDist
+        );
       }
-      maskRef.current = feather(binary, width, height, FEATHER_RADIUS);
+
+      const closed = closeMask(binary, width, height, CLOSE_RADIUS);
+      maskRef.current = feather(closed, width, height, FEATHER_RADIUS);
       setSelecting(false);
       render();
     }, 30);
