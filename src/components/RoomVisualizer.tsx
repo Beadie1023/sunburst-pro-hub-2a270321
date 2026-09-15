@@ -24,9 +24,66 @@ function hexToRgb(hex: string) {
   return { red: (value >> 16) & 255, green: (value >> 8) & 255, blue: value & 255 };
 }
 
+/**
+ * Precomputes a per-pixel edge-strength map for one photo. Runs a Sobel
+ * filter over a slightly blurred version of each color channel separately
+ * (not just combined luminance), then keeps the strongest response at each
+ * pixel. Two surfaces can be nearly identical in brightness but clearly
+ * different in hue (a beige wall next to beige bedding, for example) — a
+ * luminance-only edge map misses that boundary entirely.
+ */
+function computeEdgeMap(width: number, height: number, data: Uint8ClampedArray): Float32Array {
+  const edges = new Float32Array(width * height);
+  const channelBlurred = new Float32Array(width * height);
+  const gx = [-1, 0, 1, -2, 0, 2, -1, 0, 1];
+  const gy = [-1, -2, -1, 0, 0, 0, 1, 2, 1];
+
+  for (let channel = 0; channel < 3; channel += 1) {
+    for (let y = 0; y < height; y += 1) {
+      for (let x = 0; x < width; x += 1) {
+        let sum = 0;
+        let count = 0;
+        for (let dy = -1; dy <= 1; dy += 1) {
+          const ny = y + dy;
+          if (ny < 0 || ny >= height) continue;
+          for (let dx = -1; dx <= 1; dx += 1) {
+            const nx = x + dx;
+            if (nx < 0 || nx >= width) continue;
+            sum += data[(ny * width + nx) * 4 + channel];
+            count += 1;
+          }
+        }
+        channelBlurred[y * width + x] = sum / count;
+      }
+    }
+    for (let y = 0; y < height; y += 1) {
+      for (let x = 0; x < width; x += 1) {
+        let sx = 0;
+        let sy = 0;
+        let k = 0;
+        for (let dy = -1; dy <= 1; dy += 1) {
+          const ny = Math.min(height - 1, Math.max(0, y + dy));
+          for (let dx = -1; dx <= 1; dx += 1) {
+            const nx = Math.min(width - 1, Math.max(0, x + dx));
+            const v = channelBlurred[ny * width + nx];
+            sx += v * gx[k];
+            sy += v * gy[k];
+            k += 1;
+          }
+        }
+        const magnitude = Math.sqrt(sx * sx + sy * sy);
+        const idx = y * width + x;
+        if (magnitude > edges[idx]) edges[idx] = magnitude;
+      }
+    }
+  }
+  return edges;
+}
+
 export function RoomVisualizer() {
   const sourceCanvasRef = useRef<HTMLCanvasElement>(null);
   const previewCanvasRef = useRef<HTMLCanvasElement>(null);
+  const edgeMapRef = useRef<Float32Array | null>(null);
   const [colors, setColors] = useState<VisualizerColor[]>([]);
   const [colorsLoading, setColorsLoading] = useState(true);
   const [photoLoaded, setPhotoLoaded] = useState(false);
@@ -85,15 +142,13 @@ export function RoomVisualizer() {
 
   useEffect(() => renderPreview(), [renderPreview]);
 
-  const buildMask = useCallback((x: number, y: number) => {
+  const buildMask = useCallback((x: number, y: number, toleranceValue: number) => {
     const source = sourceCanvasRef.current;
     const context = source?.getContext("2d", { willReadFrequently: true });
     if (!source || !context) return;
     const { width, height } = source;
-    const image = context.getImageData(0, 0, width, height).data;
     const startPixel = y * width + x;
-    const startOffset = startPixel * 4;
-    const target = [image[startOffset], image[startOffset + 1], image[startOffset + 2]];
+    const edgeMap = edgeMapRef.current;
     const selected = new Uint8Array(width * height);
     const visited = new Uint8Array(width * height);
     const queue = new Int32Array(width * height);
@@ -102,33 +157,58 @@ export function RoomVisualizer() {
     queue[0] = startPixel;
     visited[startPixel] = 1;
 
+    // How strong a brightness/color change has to be before it counts as a
+    // real boundary (a corner, trim line, door frame) rather than ordinary
+    // shading, shadow, or texture across the wall.
+    const effectiveEdgeThreshold = toleranceValue * 3.2;
+
+    // Safety net for photos with very little local contrast (smoothly
+    // rendered/stock-style images, heavy blur). A wall is never the entire
+    // photo, so growth is capped both by distance from the tapped point
+    // and by total area, independent of how the edge check behaves.
+    const maxDistance = Math.max(width, height) * 0.5;
+    const maxDistanceSq = maxDistance * maxDistance;
+    const maxAcceptedPixels = Math.floor(width * height * 0.45);
+    let acceptedCount = 0;
+
     while (head < tail) {
       const pixel = queue[head++];
-      const offset = pixel * 4;
-      const distance = Math.sqrt(
-        (image[offset] - target[0]) ** 2 +
-        (image[offset + 1] - target[1]) ** 2 +
-        (image[offset + 2] - target[2]) ** 2,
-      );
-      if (distance > tolerance) continue;
       selected[pixel] = 1;
+      acceptedCount += 1;
+      if (acceptedCount >= maxAcceptedPixels) break;
       const px = pixel % width;
-      const neighbors = [pixel - width, pixel + width];
+      const py = (pixel - px) / width;
+      // 8-connected (including diagonals) so growth rounds out naturally.
+      const neighbors: number[] = [];
+      if (py > 0) neighbors.push(pixel - width);
+      if (py < height - 1) neighbors.push(pixel + width);
       if (px > 0) neighbors.push(pixel - 1);
       if (px < width - 1) neighbors.push(pixel + 1);
+      if (px > 0 && py > 0) neighbors.push(pixel - width - 1);
+      if (px < width - 1 && py > 0) neighbors.push(pixel - width + 1);
+      if (px > 0 && py < height - 1) neighbors.push(pixel + width - 1);
+      if (px < width - 1 && py < height - 1) neighbors.push(pixel + width + 1);
       for (const neighbor of neighbors) {
-        if (neighbor >= 0 && neighbor < visited.length && !visited[neighbor]) {
-          visited[neighbor] = 1;
-          queue[tail++] = neighbor;
+        if (neighbor < 0 || neighbor >= visited.length || visited[neighbor]) continue;
+        const nx = neighbor % width;
+        const ny = (neighbor - nx) / width;
+        const dx = nx - x;
+        const dy = ny - y;
+        if (dx * dx + dy * dy > maxDistanceSq) continue;
+        visited[neighbor] = 1;
+        if (edgeMap) {
+          const crossingStrength = Math.max(edgeMap[pixel], edgeMap[neighbor]);
+          if (crossingStrength > effectiveEdgeThreshold) continue; // real boundary — do not cross
         }
+        queue[tail++] = neighbor;
       }
     }
     setMask(selected);
-  }, [tolerance]);
+  }, []);
 
   useEffect(() => {
-    if (seed) buildMask(seed.x, seed.y);
-  }, [buildMask, seed]);
+    if (seed) buildMask(seed.x, seed.y, tolerance);
+  }, [buildMask, seed, tolerance]);
 
   const loadPhoto = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -148,6 +228,10 @@ export function RoomVisualizer() {
       preview.width = source.width;
       preview.height = source.height;
       preview.getContext("2d")?.drawImage(source, 0, 0);
+      if (context) {
+        const pixels = context.getImageData(0, 0, source.width, source.height);
+        edgeMapRef.current = computeEdgeMap(source.width, source.height, pixels.data);
+      }
       setPhotoLoaded(true);
       setSeed(null);
       setMask(null);
