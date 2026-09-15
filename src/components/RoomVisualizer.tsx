@@ -15,6 +15,8 @@ interface VisualizerColor {
 }
 
 const MAX_IMAGE_EDGE = 1400;
+const TOLERANCE_DEBOUNCE_MS = 90;
+const COLLAPSED_COLOR_COUNT = 60;
 
 function hexToRgb(hex: string) {
   const normalized = hex.replace("#", "");
@@ -25,68 +27,166 @@ function hexToRgb(hex: string) {
 }
 
 /**
- * Precomputes a per-pixel edge-strength map for one photo. Runs a Sobel
- * filter over a slightly blurred version of each color channel separately
- * (not just combined luminance), then keeps the strongest response at each
- * pixel. Two surfaces can be nearly identical in brightness but clearly
- * different in hue (a beige wall next to beige bedding, for example) — a
- * luminance-only edge map misses that boundary entirely.
+ * Paints a mask into an ImageData in place, preserving per-pixel luminance
+ * so shadows/highlights on the wall survive the recolor. Pulled out as its
+ * own function so both the live preview and the PNG export use exactly the
+ * same math — previously the export just serialized whatever the preview
+ * canvas happened to be showing, which broke when "Before" was toggled on.
  */
-function computeEdgeMap(width: number, height: number, data: Uint8ClampedArray): Float32Array {
-  const edges = new Float32Array(width * height);
-  const channelBlurred = new Float32Array(width * height);
-  const gx = [-1, 0, 1, -2, 0, 2, -1, 0, 1];
-  const gy = [-1, -2, -1, 0, 0, 0, 1, 2, 1];
-
-  for (let channel = 0; channel < 3; channel += 1) {
-    for (let y = 0; y < height; y += 1) {
-      for (let x = 0; x < width; x += 1) {
-        let sum = 0;
-        let count = 0;
-        for (let dy = -1; dy <= 1; dy += 1) {
-          const ny = y + dy;
-          if (ny < 0 || ny >= height) continue;
-          for (let dx = -1; dx <= 1; dx += 1) {
-            const nx = x + dx;
-            if (nx < 0 || nx >= width) continue;
-            sum += data[(ny * width + nx) * 4 + channel];
-            count += 1;
-          }
-        }
-        channelBlurred[y * width + x] = sum / count;
-      }
-    }
-    for (let y = 0; y < height; y += 1) {
-      for (let x = 0; x < width; x += 1) {
-        let sx = 0;
-        let sy = 0;
-        let k = 0;
-        for (let dy = -1; dy <= 1; dy += 1) {
-          const ny = Math.min(height - 1, Math.max(0, y + dy));
-          for (let dx = -1; dx <= 1; dx += 1) {
-            const nx = Math.min(width - 1, Math.max(0, x + dx));
-            const v = channelBlurred[ny * width + nx];
-            sx += v * gx[k];
-            sy += v * gy[k];
-            k += 1;
-          }
-        }
-        const magnitude = Math.sqrt(sx * sx + sy * sy);
-        const idx = y * width + x;
-        if (magnitude > edges[idx]) edges[idx] = magnitude;
-      }
-    }
+function applyPaint(imageData: ImageData, mask: Uint8Array, colorHex: string, strengthPercent: number) {
+  const paint = hexToRgb(colorHex);
+  const amount = strengthPercent / 100;
+  for (let pixel = 0; pixel < mask.length; pixel += 1) {
+    if (!mask[pixel]) continue;
+    const offset = pixel * 4;
+    const luminance = (imageData.data[offset] * 0.2126 + imageData.data[offset + 1] * 0.7152 + imageData.data[offset + 2] * 0.0722) / 255;
+    const light = 0.35 + luminance * 0.9;
+    const targetRed = Math.min(255, paint.red * light);
+    const targetGreen = Math.min(255, paint.green * light);
+    const targetBlue = Math.min(255, paint.blue * light);
+    imageData.data[offset] = imageData.data[offset] * (1 - amount) + targetRed * amount;
+    imageData.data[offset + 1] = imageData.data[offset + 1] * (1 - amount) + targetGreen * amount;
+    imageData.data[offset + 2] = imageData.data[offset + 2] * (1 - amount) + targetBlue * amount;
   }
-  return edges;
 }
+
+/**
+ * The edge map (Sobel over each color channel, max response kept) and the
+ * flood-fill mask build are the two expensive operations here — both scale
+ * with image area and used to run on the main thread, which freezes the UI
+ * on a real photo and makes every tolerance-slider tick feel choppy. This
+ * worker owns that math instead. It keeps the edge map resident after
+ * computing it once per photo, so later mask rebuilds (new click, new
+ * tolerance) only need to re-run the flood fill, not the edge detection.
+ */
+const workerSource = `
+  function computeEdgeMap(width, height, data) {
+    const edges = new Float32Array(width * height);
+    const channelBlurred = new Float32Array(width * height);
+    const gx = [-1, 0, 1, -2, 0, 2, -1, 0, 1];
+    const gy = [-1, -2, -1, 0, 0, 0, 1, 2, 1];
+
+    for (let channel = 0; channel < 3; channel += 1) {
+      for (let y = 0; y < height; y += 1) {
+        for (let x = 0; x < width; x += 1) {
+          let sum = 0;
+          let count = 0;
+          for (let dy = -1; dy <= 1; dy += 1) {
+            const ny = y + dy;
+            if (ny < 0 || ny >= height) continue;
+            for (let dx = -1; dx <= 1; dx += 1) {
+              const nx = x + dx;
+              if (nx < 0 || nx >= width) continue;
+              sum += data[(ny * width + nx) * 4 + channel];
+              count += 1;
+            }
+          }
+          channelBlurred[y * width + x] = sum / count;
+        }
+      }
+      for (let y = 0; y < height; y += 1) {
+        for (let x = 0; x < width; x += 1) {
+          let sx = 0;
+          let sy = 0;
+          let k = 0;
+          for (let dy = -1; dy <= 1; dy += 1) {
+            const ny = Math.min(height - 1, Math.max(0, y + dy));
+            for (let dx = -1; dx <= 1; dx += 1) {
+              const nx = Math.min(width - 1, Math.max(0, x + dx));
+              const v = channelBlurred[ny * width + nx];
+              sx += v * gx[k];
+              sy += v * gy[k];
+              k += 1;
+            }
+          }
+          const magnitude = Math.sqrt(sx * sx + sy * sy);
+          const idx = y * width + x;
+          if (magnitude > edges[idx]) edges[idx] = magnitude;
+        }
+      }
+    }
+    return edges;
+  }
+
+  function buildMaskCore(x, y, toleranceValue, width, height, edgeMap) {
+    const startPixel = y * width + x;
+    const selected = new Uint8Array(width * height);
+    const visited = new Uint8Array(width * height);
+    const queue = new Int32Array(width * height);
+    let head = 0;
+    let tail = 1;
+    queue[0] = startPixel;
+    visited[startPixel] = 1;
+
+    const effectiveEdgeThreshold = toleranceValue * 3.2;
+    const maxDistance = Math.max(width, height) * 0.3;
+    const maxDistanceSq = maxDistance * maxDistance;
+    const maxAcceptedPixels = Math.floor(width * height * 0.25);
+    let acceptedCount = 0;
+
+    while (head < tail) {
+      const pixel = queue[head++];
+      selected[pixel] = 1;
+      acceptedCount += 1;
+      if (acceptedCount >= maxAcceptedPixels) break;
+      const px = pixel % width;
+      const py = (pixel - px) / width;
+      const neighbors = [];
+      if (py > 0) neighbors.push(pixel - width);
+      if (py < height - 1) neighbors.push(pixel + width);
+      if (px > 0) neighbors.push(pixel - 1);
+      if (px < width - 1) neighbors.push(pixel + 1);
+      if (px > 0 && py > 0) neighbors.push(pixel - width - 1);
+      if (px < width - 1 && py > 0) neighbors.push(pixel - width + 1);
+      if (px > 0 && py < height - 1) neighbors.push(pixel + width - 1);
+      if (px < width - 1 && py < height - 1) neighbors.push(pixel + width + 1);
+      for (const neighbor of neighbors) {
+        if (neighbor < 0 || neighbor >= visited.length || visited[neighbor]) continue;
+        const nx = neighbor % width;
+        const ny = (neighbor - nx) / width;
+        const dx = nx - x;
+        const dy = ny - y;
+        if (dx * dx + dy * dy > maxDistanceSq) continue;
+        visited[neighbor] = 1;
+        if (edgeMap) {
+          const crossingStrength = Math.max(edgeMap[pixel], edgeMap[neighbor]);
+          if (crossingStrength > effectiveEdgeThreshold) continue;
+        }
+        queue[tail++] = neighbor;
+      }
+    }
+    return selected;
+  }
+
+  let edgeMap = null;
+  let imgWidth = 0;
+  let imgHeight = 0;
+
+  self.onmessage = (event) => {
+    const msg = event.data;
+    if (msg.type === "computeEdgeMap") {
+      imgWidth = msg.width;
+      imgHeight = msg.height;
+      const data = new Uint8ClampedArray(msg.buffer);
+      edgeMap = computeEdgeMap(imgWidth, imgHeight, data);
+      self.postMessage({ type: "edgeMapReady" });
+    } else if (msg.type === "buildMask") {
+      if (!edgeMap || imgWidth !== msg.width || imgHeight !== msg.height) return;
+      const mask = buildMaskCore(msg.x, msg.y, msg.tolerance, imgWidth, imgHeight, edgeMap);
+      self.postMessage({ type: "maskReady", buffer: mask.buffer, requestId: msg.requestId }, [mask.buffer]);
+    }
+  };
+`;
 
 export function RoomVisualizer() {
   const sourceCanvasRef = useRef<HTMLCanvasElement>(null);
   const previewCanvasRef = useRef<HTMLCanvasElement>(null);
-  const edgeMapRef = useRef<Float32Array | null>(null);
+  const workerRef = useRef<Worker | null>(null);
+  const maskRequestIdRef = useRef(0);
   const [colors, setColors] = useState<VisualizerColor[]>([]);
   const [colorsLoading, setColorsLoading] = useState(true);
   const [photoLoaded, setPhotoLoaded] = useState(false);
+  const [edgeMapReady, setEdgeMapReady] = useState(false);
   const [selectedColor, setSelectedColor] = useState<VisualizerColor | null>(null);
   const [search, setSearch] = useState("");
   const [tolerance, setTolerance] = useState(38);
@@ -94,6 +194,32 @@ export function RoomVisualizer() {
   const [seed, setSeed] = useState<{ x: number; y: number } | null>(null);
   const [mask, setMask] = useState<Uint8Array | null>(null);
   const [showPaint, setShowPaint] = useState(true);
+
+  // Spin up the worker once and keep it alive for the component's lifetime.
+  useEffect(() => {
+    const blob = new Blob([workerSource], { type: "application/javascript" });
+    const url = URL.createObjectURL(blob);
+    const worker = new Worker(url);
+    URL.revokeObjectURL(url);
+    workerRef.current = worker;
+
+    const handleMessage = (event: MessageEvent) => {
+      const msg = event.data;
+      if (msg.type === "edgeMapReady") {
+        setEdgeMapReady(true);
+      } else if (msg.type === "maskReady") {
+        // Ignore results from a stale request (e.g. the user moved the
+        // slider again before the previous mask finished computing).
+        if (msg.requestId !== maskRequestIdRef.current) return;
+        setMask(new Uint8Array(msg.buffer));
+      }
+    };
+    worker.addEventListener("message", handleMessage);
+    return () => {
+      worker.removeEventListener("message", handleMessage);
+      worker.terminate();
+    };
+  }, []);
 
   useEffect(() => {
     supabase
@@ -122,93 +248,36 @@ export function RoomVisualizer() {
     preview.height = source.height;
     const image = sourceContext.getImageData(0, 0, source.width, source.height);
     if (showPaint && mask && selectedColor) {
-      const paint = hexToRgb(selectedColor.hex);
-      const amount = strength / 100;
-      for (let pixel = 0; pixel < mask.length; pixel += 1) {
-        if (!mask[pixel]) continue;
-        const offset = pixel * 4;
-        const luminance = (image.data[offset] * 0.2126 + image.data[offset + 1] * 0.7152 + image.data[offset + 2] * 0.0722) / 255;
-        const light = 0.35 + luminance * 0.9;
-        const targetRed = Math.min(255, paint.red * light);
-        const targetGreen = Math.min(255, paint.green * light);
-        const targetBlue = Math.min(255, paint.blue * light);
-        image.data[offset] = image.data[offset] * (1 - amount) + targetRed * amount;
-        image.data[offset + 1] = image.data[offset + 1] * (1 - amount) + targetGreen * amount;
-        image.data[offset + 2] = image.data[offset + 2] * (1 - amount) + targetBlue * amount;
-      }
+      applyPaint(image, mask, selectedColor.hex, strength);
     }
     previewContext.putImageData(image, 0, 0);
   }, [mask, selectedColor, showPaint, strength]);
 
   useEffect(() => renderPreview(), [renderPreview]);
 
-  const buildMask = useCallback((x: number, y: number, toleranceValue: number) => {
+  const requestMask = useCallback((x: number, y: number, toleranceValue: number) => {
     const source = sourceCanvasRef.current;
-    const context = source?.getContext("2d", { willReadFrequently: true });
-    if (!source || !context) return;
-    const { width, height } = source;
-    const startPixel = y * width + x;
-    const edgeMap = edgeMapRef.current;
-    const selected = new Uint8Array(width * height);
-    const visited = new Uint8Array(width * height);
-    const queue = new Int32Array(width * height);
-    let head = 0;
-    let tail = 1;
-    queue[0] = startPixel;
-    visited[startPixel] = 1;
-
-    // How strong a brightness/color change has to be before it counts as a
-    // real boundary (a corner, trim line, door frame) rather than ordinary
-    // shading, shadow, or texture across the wall.
-    const effectiveEdgeThreshold = toleranceValue * 3.2;
-
-    // Safety net for photos with very little local contrast (smoothly
-    // rendered/stock-style images, heavy blur). A wall is never the entire
-    // photo, so growth is capped both by distance from the tapped point
-    // and by total area, independent of how the edge check behaves.
-    const maxDistance = Math.max(width, height) * 0.3;
-    const maxDistanceSq = maxDistance * maxDistance;
-    const maxAcceptedPixels = Math.floor(width * height * 0.25);
-    let acceptedCount = 0;
-
-    while (head < tail) {
-      const pixel = queue[head++];
-      selected[pixel] = 1;
-      acceptedCount += 1;
-      if (acceptedCount >= maxAcceptedPixels) break;
-      const px = pixel % width;
-      const py = (pixel - px) / width;
-      // 8-connected (including diagonals) so growth rounds out naturally.
-      const neighbors: number[] = [];
-      if (py > 0) neighbors.push(pixel - width);
-      if (py < height - 1) neighbors.push(pixel + width);
-      if (px > 0) neighbors.push(pixel - 1);
-      if (px < width - 1) neighbors.push(pixel + 1);
-      if (px > 0 && py > 0) neighbors.push(pixel - width - 1);
-      if (px < width - 1 && py > 0) neighbors.push(pixel - width + 1);
-      if (px > 0 && py < height - 1) neighbors.push(pixel + width - 1);
-      if (px < width - 1 && py < height - 1) neighbors.push(pixel + width + 1);
-      for (const neighbor of neighbors) {
-        if (neighbor < 0 || neighbor >= visited.length || visited[neighbor]) continue;
-        const nx = neighbor % width;
-        const ny = (neighbor - nx) / width;
-        const dx = nx - x;
-        const dy = ny - y;
-        if (dx * dx + dy * dy > maxDistanceSq) continue;
-        visited[neighbor] = 1;
-        if (edgeMap) {
-          const crossingStrength = Math.max(edgeMap[pixel], edgeMap[neighbor]);
-          if (crossingStrength > effectiveEdgeThreshold) continue; // real boundary — do not cross
-        }
-        queue[tail++] = neighbor;
-      }
-    }
-    setMask(selected);
+    const worker = workerRef.current;
+    if (!source || !worker) return;
+    maskRequestIdRef.current += 1;
+    worker.postMessage({
+      type: "buildMask",
+      x,
+      y,
+      tolerance: toleranceValue,
+      width: source.width,
+      height: source.height,
+      requestId: maskRequestIdRef.current,
+    });
   }, []);
 
+  // Debounced so dragging the tolerance slider doesn't fire a flood fill on
+  // every intermediate value — only once movement settles.
   useEffect(() => {
-    if (seed) buildMask(seed.x, seed.y, tolerance);
-  }, [buildMask, seed, tolerance]);
+    if (!seed || !edgeMapReady) return;
+    const id = setTimeout(() => requestMask(seed.x, seed.y, tolerance), TOLERANCE_DEBOUNCE_MS);
+    return () => clearTimeout(id);
+  }, [seed, tolerance, edgeMapReady, requestMask]);
 
   const loadPhoto = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -219,7 +288,8 @@ export function RoomVisualizer() {
     image.onload = () => {
       const source = sourceCanvasRef.current;
       const preview = previewCanvasRef.current;
-      if (!source || !preview) return;
+      const worker = workerRef.current;
+      if (!source || !preview || !worker) return;
       const scale = Math.min(1, MAX_IMAGE_EDGE / Math.max(image.width, image.height));
       source.width = Math.round(image.width * scale);
       source.height = Math.round(image.height * scale);
@@ -228,13 +298,21 @@ export function RoomVisualizer() {
       preview.width = source.width;
       preview.height = source.height;
       preview.getContext("2d")?.drawImage(source, 0, 0);
-      if (context) {
-        const pixels = context.getImageData(0, 0, source.width, source.height);
-        edgeMapRef.current = computeEdgeMap(source.width, source.height, pixels.data);
-      }
+
       setPhotoLoaded(true);
+      setEdgeMapReady(false);
       setSeed(null);
       setMask(null);
+
+      if (context) {
+        const pixels = context.getImageData(0, 0, source.width, source.height);
+        // Transfer the buffer instead of copying it — this pixel data
+        // isn't needed on the main thread again, so it's zero-copy.
+        worker.postMessage(
+          { type: "computeEdgeMap", width: source.width, height: source.height, buffer: pixels.data.buffer },
+          [pixels.data.buffer],
+        );
+      }
       URL.revokeObjectURL(url);
     };
     image.onerror = () => {
@@ -247,7 +325,7 @@ export function RoomVisualizer() {
 
   const selectWall = (event: MouseEvent<HTMLCanvasElement>) => {
     const canvas = previewCanvasRef.current;
-    if (!canvas || !photoLoaded) return;
+    if (!canvas || !photoLoaded || !edgeMapReady) return;
     const bounds = canvas.getBoundingClientRect();
     setSeed({
       x: Math.max(0, Math.min(canvas.width - 1, Math.floor((event.clientX - bounds.left) * canvas.width / bounds.width))),
@@ -257,18 +335,33 @@ export function RoomVisualizer() {
   };
 
   const download = () => {
-    const canvas = previewCanvasRef.current;
-    if (!canvas || !photoLoaded) return;
+    const source = sourceCanvasRef.current;
+    if (!source || !photoLoaded) return;
+    const context = source.getContext("2d", { willReadFrequently: true });
+    if (!context) return;
+    // Always export the painted version, regardless of the Before/After
+    // toggle in the UI — downloading while "Before" is showing used to
+    // silently save the unpainted photo.
+    const imageData = context.getImageData(0, 0, source.width, source.height);
+    if (mask && selectedColor) applyPaint(imageData, mask, selectedColor.hex, strength);
+    const exportCanvas = document.createElement("canvas");
+    exportCanvas.width = source.width;
+    exportCanvas.height = source.height;
+    exportCanvas.getContext("2d")?.putImageData(imageData, 0, 0);
     const link = document.createElement("a");
     link.download = `${selectedColor?.name ?? "Sunburst-color"}-room-preview.png`;
-    link.href = canvas.toDataURL("image/png");
+    link.href = exportCanvas.toDataURL("image/png");
     link.click();
   };
 
-  const filteredColors = colors.filter((color) => {
-    const query = search.trim().toLowerCase();
-    return !query || color.name.toLowerCase().includes(query) || color.code.toLowerCase().includes(query);
-  }).slice(0, 80);
+  const query = search.trim().toLowerCase();
+  const matchingColors = colors.filter((color) => (
+    !query || color.name.toLowerCase().includes(query) || color.code.toLowerCase().includes(query)
+  ));
+  // Only truncate the unfiltered "browse everything" list — a real search
+  // always sees every match, so typing never hides a color that exists.
+  const filteredColors = query ? matchingColors : matchingColors.slice(0, COLLAPSED_COLOR_COUNT);
+  const isCollapsed = !query && matchingColors.length > COLLAPSED_COLOR_COUNT;
 
   return (
     <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_300px]">
@@ -278,9 +371,15 @@ export function RoomVisualizer() {
           <canvas
             ref={previewCanvasRef}
             onClick={selectWall}
-            className={`max-h-[620px] w-full object-contain ${photoLoaded ? "cursor-crosshair" : "hidden"}`}
+            className={`max-h-[620px] w-full object-contain ${photoLoaded ? (edgeMapReady ? "cursor-crosshair" : "cursor-wait") : "hidden"}`}
             aria-label="Room color preview. Click a wall to paint it."
           />
+          {photoLoaded && !edgeMapReady && (
+            <div className="absolute inset-0 flex items-center justify-center gap-2 bg-background/70 text-sm font-medium text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Preparing photo…
+            </div>
+          )}
           {!photoLoaded && (
             <label className="flex min-h-80 w-full cursor-pointer flex-col items-center justify-center gap-3 text-center">
               <span className="flex h-12 w-12 items-center justify-center rounded-full bg-accent/15 text-accent"><ImagePlus className="h-6 w-6" /></span>
@@ -298,7 +397,9 @@ export function RoomVisualizer() {
             <Button size="sm" onClick={download} disabled={!mask} className="ml-auto"><Download className="mr-1.5 h-4 w-4" />Download</Button>
           </div>
         )}
-        <p className="text-sm text-muted-foreground">{mask ? "Wall selected. Try colors or adjust the controls." : photoLoaded ? "Tap the middle of the wall you want to paint." : "Your photo stays on this device."}</p>
+        <p className="text-sm text-muted-foreground">
+          {mask ? "Wall selected. Try colors or adjust the controls." : photoLoaded ? (edgeMapReady ? "Tap the middle of the wall you want to paint." : "Preparing photo…") : "Your photo stays on this device."}
+        </p>
       </section>
 
       <aside className="space-y-5">
@@ -320,6 +421,11 @@ export function RoomVisualizer() {
               </button>
             )) : <p className="p-5 text-center text-sm text-muted-foreground">No matching colors</p>}
           </div>
+          {isCollapsed && (
+            <p className="text-xs text-muted-foreground">
+              Showing {COLLAPSED_COLOR_COUNT} of {matchingColors.length} colors — search by name or code to see the rest.
+            </p>
+          )}
         </div>
         <div className="space-y-4 border-t border-border pt-4">
           <div className="space-y-2"><div className="flex justify-between text-sm"><Label htmlFor="tolerance">Wall range</Label><span className="text-muted-foreground">{tolerance}</span></div><input id="tolerance" type="range" min="10" max="90" value={tolerance} onChange={(event) => setTolerance(Number(event.target.value))} className="w-full accent-accent" /></div>
