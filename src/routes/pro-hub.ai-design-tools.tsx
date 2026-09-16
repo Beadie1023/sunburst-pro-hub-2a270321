@@ -3,11 +3,14 @@ import { useState, useRef, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { recommendColors, visualizeRoom } from "@/lib/ai-advisor.functions";
+import { RoomVisualizer } from "@/components/RoomVisualizer";
 import {
   Upload,
   Loader2,
   AlertCircle,
   Wand2,
+  Palette,
+  ScanLine,
 } from "lucide-react";
 
 export const Route = createFileRoute("/pro-hub/ai-design-tools")({
@@ -100,6 +103,9 @@ function UploadBox({ file, onFile, label = "Drop or click to upload an image", h
 }
 
 function AiDesignToolsPage() {
+  const [activeTool, setActiveTool] = useState<"match" | "visualizer">(() =>
+    typeof window !== "undefined" && window.location.hash === "#visualizer" ? "visualizer" : "match",
+  );
   const [loadingTab, setLoadingTab] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -189,120 +195,147 @@ function AiDesignToolsPage() {
     <div className="p-6 space-y-6 max-w-4xl mx-auto">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">AI Design Tools</h1>
-        <p className="text-muted-foreground">Color match, room visualization, and paint estimation.</p>
+        <p className="text-muted-foreground">Match colors and preview Sunburst paint on your client's walls.</p>
       </div>
 
-      <div className="grid md:grid-cols-2 gap-6">
-        <Card className="p-4 space-y-4">
-          <h2 className="text-lg font-semibold">Upload a photo</h2>
-          <UploadBox file={matchFile} onFile={setMatchFile} />
-          
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Room / Surface Type</label>
-            <select 
-              value={roomType} 
-              onChange={(e) => setRoomType(e.target.value)}
-              className="w-full p-2 border rounded-md bg-background text-sm"
+      <div className="inline-flex rounded-md border border-border bg-muted/30 p-1">
+        <Button
+          variant={activeTool === "match" ? "default" : "ghost"}
+          size="sm"
+          onClick={() => {
+            setActiveTool("match");
+            window.history.replaceState(null, "", window.location.pathname);
+          }}
+        >
+          <Palette className="mr-1.5 h-4 w-4" /> Color Match
+        </Button>
+        <Button
+          variant={activeTool === "visualizer" ? "default" : "ghost"}
+          size="sm"
+          onClick={() => {
+            setActiveTool("visualizer");
+            window.history.replaceState(null, "", "#visualizer");
+          }}
+        >
+          <ScanLine className="mr-1.5 h-4 w-4" /> Room Visualizer
+        </Button>
+      </div>
+
+      {activeTool === "visualizer" ? (
+        <RoomVisualizer />
+      ) : (
+        <div className="grid md:grid-cols-2 gap-6">
+          <Card className="p-4 space-y-4">
+            <h2 className="text-lg font-semibold">Upload a photo</h2>
+            <UploadBox file={matchFile} onFile={setMatchFile} />
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Room / Surface Type</label>
+              <select
+                value={roomType}
+                onChange={(e) => setRoomType(e.target.value)}
+                className="w-full p-2 border rounded-md bg-background text-sm"
+              >
+                <option value="Living Room">Living Room</option>
+                <option value="Bedroom">Bedroom</option>
+                <option value="Kitchen">Kitchen</option>
+                <option value="Bathroom">Bathroom</option>
+                <option value="Exterior">Exterior</option>
+              </select>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Style Preference</label>
+              <select
+                value={stylePreference}
+                onChange={(e) => setStylePreference(e.target.value)}
+                className="w-full p-2 border rounded-md bg-background text-sm"
+              >
+                <option value="Minimalist">Minimalist</option>
+                <option value="Modern">Modern</option>
+                <option value="Traditional">Traditional</option>
+                <option value="Coastal">Coastal</option>
+              </select>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Contractor Notes (Optional)</label>
+              <textarea
+                value={contractorNotes}
+                onChange={(e) => setContractorNotes(e.target.value)}
+                placeholder="e.g., Low lighting, warm undertones..."
+                className="w-full p-2 border rounded-md bg-background h-20 resize-none text-sm"
+              />
+            </div>
+
+            <Button
+              onClick={handleColorMatchRequest}
+              className="w-full bg-[#f24e1e] hover:bg-[#d63f13] text-white"
+              disabled={loadingTab === "match" || !matchFile}
             >
-              <option value="Living Room">Living Room</option>
-              <option value="Bedroom">Bedroom</option>
-              <option value="Kitchen">Kitchen</option>
-              <option value="Bathroom">Bathroom</option>
-              <option value="Exterior">Exterior</option>
-            </select>
-          </div>
+              {loadingTab === "match" ? "Processing..." : "Find Matching Colors"}
+            </Button>
+          </Card>
 
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Style Preference</label>
-            <select 
-              value={stylePreference} 
-              onChange={(e) => setStylePreference(e.target.value)}
-              className="w-full p-2 border rounded-md bg-background text-sm"
-            >
-              <option value="Minimalist">Minimalist</option>
-              <option value="Modern">Modern</option>
-              <option value="Traditional">Traditional</option>
-              <option value="Coastal">Coastal</option>
-            </select>
-          </div>
+          <div className="space-y-4">
+            {loadingTab === "match" && <LoadingSpinner />}
+            {errorMsg && <ErrorCard message={errorMsg} />}
 
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Contractor Notes (Optional)</label>
-            <textarea
-              value={contractorNotes}
-              onChange={(e) => setContractorNotes(e.target.value)}
-              placeholder="e.g., Low lighting, warm undertones..."
-              className="w-full p-2 border rounded-md bg-background h-20 resize-none text-sm"
-            />
-          </div>
-
-          <Button 
-            onClick={handleColorMatchRequest} 
-            className="w-full bg-[#f24e1e] hover:bg-[#d63f13] text-white"
-            disabled={loadingTab === "match" || !matchFile}
-          >
-            {loadingTab === "match" ? "Processing..." : "Find Matching Colors"}
-          </Button>
-        </Card>
-
-        <div className="space-y-4">
-          {loadingTab === "match" && <LoadingSpinner />}
-          {errorMsg && <ErrorCard message={errorMsg} />}
-          
-          {colorResults.length > 0 && (
-            <Card className="p-4 space-y-3">
-              <h3 className="font-semibold text-sm">Recommended Colors</h3>
-              {visualizeError && <p className="text-xs text-red-600">{visualizeError}</p>}
-              <div className="space-y-2">
-                {colorResults.map((rec: any, i: number) => (
-                  <div key={i} className="flex flex-col p-3 border rounded-md bg-muted/20 gap-2">
-                    <div className="flex items-center gap-3">
-                      <div 
-                        className="w-8 h-8 rounded-full border shadow-sm flex-shrink-0" 
-                        style={{ backgroundColor: rec.color?.hex || '#ccc' }} 
-                      />
-                      <div>
-                        <p className="font-semibold text-sm">{rec.color?.name || "Unnamed Color"}</p>
-                        <p className="text-xs text-muted-foreground uppercase font-mono">{rec.color?.hex || ""}</p>
+            {colorResults.length > 0 && (
+              <Card className="p-4 space-y-3">
+                <h3 className="font-semibold text-sm">Recommended Colors</h3>
+                {visualizeError && <p className="text-xs text-red-600">{visualizeError}</p>}
+                <div className="space-y-2">
+                  {colorResults.map((rec: any, i: number) => (
+                    <div key={i} className="flex flex-col p-3 border rounded-md bg-muted/20 gap-2">
+                      <div className="flex items-center gap-3">
+                        <div
+                          className="w-8 h-8 rounded-full border shadow-sm flex-shrink-0"
+                          style={{ backgroundColor: rec.color?.hex || '#ccc' }}
+                        />
+                        <div>
+                          <p className="font-semibold text-sm">{rec.color?.name || "Unnamed Color"}</p>
+                          <p className="text-xs text-muted-foreground uppercase font-mono">{rec.color?.hex || ""}</p>
+                        </div>
+                        <span className="ml-auto text-xs font-semibold px-2 py-0.5 bg-accent/10 text-accent rounded uppercase">
+                          {rec.role || "primary"}
+                        </span>
                       </div>
-                      <span className="ml-auto text-xs font-semibold px-2 py-0.5 bg-accent/10 text-accent rounded uppercase">
-                        {rec.role || "primary"}
-                      </span>
-                    </div>
-                    <div className="text-xs text-muted-foreground border-t pt-2 mt-1">
-                      <p><strong className="text-foreground">Finish:</strong> {rec.finish || "Satin"}</p>
-                      <p className="mt-1">{rec.reason || ""}</p>
-                    </div>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="w-full"
-                      disabled={visualizingIndex !== null}
-                      onClick={() => handleVisualize(i)}
-                    >
-                      {visualizingIndex === i ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <>
-                          <Wand2 className="mr-2 h-4 w-4" />
-                          {visualizedImages[i] ? "Regenerate visualization" : "Visualize this color on my photo"}
-                        </>
+                      <div className="text-xs text-muted-foreground border-t pt-2 mt-1">
+                        <p><strong className="text-foreground">Finish:</strong> {rec.finish || "Satin"}</p>
+                        <p className="mt-1">{rec.reason || ""}</p>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="w-full"
+                        disabled={visualizingIndex !== null}
+                        onClick={() => handleVisualize(i)}
+                      >
+                        {visualizingIndex === i ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <>
+                            <Wand2 className="mr-2 h-4 w-4" />
+                            {visualizedImages[i] ? "Regenerate visualization" : "Visualize this color on my photo"}
+                          </>
+                        )}
+                      </Button>
+                      {visualizedImages[i] && (
+                        <img
+                          src={visualizedImages[i]}
+                          alt={`Room repainted in ${rec.color?.name}`}
+                          className="w-full rounded-md border mt-1"
+                        />
                       )}
-                    </Button>
-                    {visualizedImages[i] && (
-                      <img
-                        src={visualizedImages[i]}
-                        alt={`Room repainted in ${rec.color?.name}`}
-                        className="w-full rounded-md border mt-1"
-                      />
-                    )}
-                  </div>
-                ))}
-              </div>
-            </Card>
-          )}
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            )}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
