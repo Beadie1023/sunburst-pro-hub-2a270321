@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.visualize-room]
 verify_jwt = false
+
+[functions.segment-room-surface]
+nverify_jwt = false
