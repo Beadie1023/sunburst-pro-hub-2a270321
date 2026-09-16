@@ -5,3 +5,4 @@
 - [x] Set image_url on matching products (painter's tape, caulk single/case, spackling, contact cement, 4" brush, sandpaper)
 - [x] Display image_url on product cards and admin product table
 - [x] Fix AI Design Tools edge function failure (client now downscales photos to 1024px JPEG before sending; function verified working)
+- [x] Color studio: separate wall vs ceiling colors, tighter surface selection
