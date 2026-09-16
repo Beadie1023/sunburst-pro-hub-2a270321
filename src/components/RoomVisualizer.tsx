@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type MouseEvent } from "react";
-import { Download, Eye, EyeOff, ImagePlus, Loader2, Trash2, X } from "lucide-react";
+import { Download, Eye, EyeOff, ImagePlus, Loader2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -14,11 +14,8 @@ interface PaintColor {
   collection: string;
 }
 
-type SurfaceKind = "wall" | "ceiling";
-
-interface SurfaceRegion {
+interface Region {
   id: string;
-  surface: SurfaceKind;
   seed: { x: number; y: number };
   mask: Uint8Array;
 }
@@ -136,14 +133,12 @@ function fillSmallGaps(mask: Uint8Array, width: number, height: number, maxHoleS
  * Color Studio (Room Visualizer)
  *
  * Runs entirely on-device: the photo is decoded into a <canvas>, each tapped
- * surface is isolated with an edge-aware flood-fill, and the chosen paint is
+ * wall area is isolated with an edge-aware flood-fill, and the chosen paint is
  * blended in using the pixel's own luminance so light, shadow and texture
  * survive. Nothing is uploaded.
  *
- * Surfaces: the user picks "Walls" or "Ceiling" first, then taps. Every
- * region tapped in Walls mode shares one wall color; every region tapped in
- * Ceiling mode shares a separate ceiling color, so picking a color repaints
- * all regions of that surface at once.
+ * One color paints every wall at once: picking a color repaints all tapped
+ * wall regions simultaneously.
  */
 export function RoomVisualizer() {
   const sourceCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -156,9 +151,8 @@ export function RoomVisualizer() {
   const [search, setSearch] = useState("");
 
   const [photoLoaded, setPhotoLoaded] = useState(false);
-  const [surface, setSurface] = useState<SurfaceKind>("wall");
-  const [surfaceColors, setSurfaceColors] = useState<Record<SurfaceKind, PaintColor | null>>({ wall: null, ceiling: null });
-  const [regions, setRegions] = useState<SurfaceRegion[]>([]);
+  const [selectedColor, setSelectedColor] = useState<PaintColor | null>(null);
+  const [regions, setRegions] = useState<Region[]>([]);
   const [tolerance, setTolerance] = useState(34);
   const [strength, setStrength] = useState(75);
   const [showPaint, setShowPaint] = useState(true);
@@ -192,10 +186,6 @@ export function RoomVisualizer() {
       .slice(0, 100);
   }, [colors, search]);
 
-  const activeColor = surfaceColors[surface];
-  const wallCount = regions.filter((region) => region.surface === "wall").length;
-  const ceilingCount = regions.filter((region) => region.surface === "ceiling").length;
-
   const renderPreview = useCallback(() => {
     const source = sourceCanvasRef.current;
     const preview = previewCanvasRef.current;
@@ -208,37 +198,27 @@ export function RoomVisualizer() {
     preview.height = source.height;
     const image = sourceContext.getImageData(0, 0, source.width, source.height);
 
-    if (showPaint && regions.length) {
-      const pixelCount = image.data.length / 4;
-      const owner = new Int16Array(pixelCount).fill(-1);
-      regions.forEach((region, index) => {
-        if (!surfaceColors[region.surface]) return;
-        for (let pixel = 0; pixel < region.mask.length; pixel += 1) {
-          if (region.mask[pixel]) owner[pixel] = index;
-        }
-      });
-
+    if (showPaint && selectedColor && regions.length) {
+      const paint = hexToRgb(selectedColor.hex);
       const amount = strength / 100;
-      for (let pixel = 0; pixel < pixelCount; pixel += 1) {
-        const ownerIndex = owner[pixel];
-        if (ownerIndex === -1) continue;
-        const color = surfaceColors[regions[ownerIndex].surface];
-        if (!color) continue;
-        const paint = hexToRgb(color.hex);
-        const offset = pixel * 4;
-        const luminance =
-          (image.data[offset] * 0.2126 + image.data[offset + 1] * 0.7152 + image.data[offset + 2] * 0.0722) / 255;
-        const light = 0.35 + luminance * 0.9;
-        const shadedRed = Math.min(255, paint.red * light);
-        const shadedGreen = Math.min(255, paint.green * light);
-        const shadedBlue = Math.min(255, paint.blue * light);
-        image.data[offset] = paint.red * (1 - amount) + shadedRed * amount;
-        image.data[offset + 1] = paint.green * (1 - amount) + shadedGreen * amount;
-        image.data[offset + 2] = paint.blue * (1 - amount) + shadedBlue * amount;
+      for (const region of regions) {
+        for (let pixel = 0; pixel < region.mask.length; pixel += 1) {
+          if (!region.mask[pixel]) continue;
+          const offset = pixel * 4;
+          const luminance =
+            (image.data[offset] * 0.2126 + image.data[offset + 1] * 0.7152 + image.data[offset + 2] * 0.0722) / 255;
+          const light = 0.35 + luminance * 0.9;
+          const shadedRed = Math.min(255, paint.red * light);
+          const shadedGreen = Math.min(255, paint.green * light);
+          const shadedBlue = Math.min(255, paint.blue * light);
+          image.data[offset] = paint.red * (1 - amount) + shadedRed * amount;
+          image.data[offset + 1] = paint.green * (1 - amount) + shadedGreen * amount;
+          image.data[offset + 2] = paint.blue * (1 - amount) + shadedBlue * amount;
+        }
       }
     }
     previewContext.putImageData(image, 0, 0);
-  }, [regions, showPaint, strength, surfaceColors]);
+  }, [regions, selectedColor, showPaint, strength]);
 
   useEffect(() => renderPreview(), [renderPreview]);
 
@@ -345,8 +325,8 @@ export function RoomVisualizer() {
   const handleCanvasClick = (event: MouseEvent<HTMLCanvasElement>) => {
     const canvas = previewCanvasRef.current;
     if (!canvas || !photoLoaded) return;
-    if (!surfaceColors[surface]) {
-      toast.error(surface === "wall" ? "Pick a wall color first." : "Pick a ceiling color first.");
+    if (!selectedColor) {
+      toast.error("Pick a color first.");
       return;
     }
     const bounds = canvas.getBoundingClientRect();
@@ -363,12 +343,12 @@ export function RoomVisualizer() {
     }
 
     const mask = buildMaskFor({ x, y }, tolerance);
-    setRegions((prev) => [...prev, { id: String(nextIdRef.current++), surface, seed: { x, y }, mask }]);
+    setRegions((prev) => [...prev, { id: String(nextIdRef.current++), seed: { x, y }, mask }]);
     setShowPaint(true);
   };
 
   const chooseColor = (color: PaintColor) => {
-    setSurfaceColors((prev) => ({ ...prev, [surface]: color }));
+    setSelectedColor(color);
     setShowPaint(true);
   };
 
@@ -377,24 +357,15 @@ export function RoomVisualizer() {
     setRegions((prev) => prev.map((region) => ({ ...region, mask: buildMaskFor(region.seed, value) })));
   };
 
-  const clearSurface = (kind: SurfaceKind) => setRegions((prev) => prev.filter((region) => region.surface !== kind));
-
   const download = () => {
     const canvas = previewCanvasRef.current;
     if (!canvas || !photoLoaded) return;
     const link = document.createElement("a");
-    const name = (surfaceColors.wall?.name ?? surfaceColors.ceiling?.name ?? "sunburst")
-      .replace(/[^a-z0-9]+/gi, "-")
-      .replace(/^-|-$/g, "");
+    const name = (selectedColor?.name ?? "sunburst").replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "");
     link.download = `${name}-room-preview.png`;
     link.href = canvas.toDataURL("image/png");
     link.click();
   };
-
-  const surfaceTabs: { kind: SurfaceKind; label: string; count: number }[] = [
-    { kind: "wall", label: "Walls", count: wallCount },
-    { kind: "ceiling", label: "Ceiling", count: ceilingCount },
-  ];
 
   return (
     <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
@@ -405,7 +376,7 @@ export function RoomVisualizer() {
             ref={previewCanvasRef}
             onClick={handleCanvasClick}
             className={`max-h-[620px] w-full object-contain ${photoLoaded ? "cursor-crosshair" : "hidden"}`}
-            aria-label="Room color preview. Choose walls or ceiling, then tap the surface to paint it."
+            aria-label="Room color preview. Pick a color, then tap the walls to paint them."
           />
           {!photoLoaded && (
             <label className="flex min-h-80 w-full cursor-pointer flex-col items-center justify-center gap-3 text-center">
@@ -414,7 +385,7 @@ export function RoomVisualizer() {
               </span>
               <span className="font-semibold text-foreground">Upload or take a room photo</span>
               <span className="max-w-xs text-sm text-muted-foreground">
-                Use a clear photo where the surfaces are visible and evenly lit. Your photo stays on this device.
+                Use a clear photo where the walls are visible and evenly lit. Your photo stays on this device.
               </span>
               <input type="file" accept="image/*" capture="environment" onChange={loadPhoto} className="hidden" />
             </label>
@@ -448,52 +419,17 @@ export function RoomVisualizer() {
         <p className="text-sm text-muted-foreground">
           {!photoLoaded
             ? "No photo is ever uploaded — the preview is rendered locally in your browser."
-            : !surfaceColors[surface]
-              ? `Pick a ${surface === "wall" ? "wall" : "ceiling"} color, then tap that surface in the photo.`
+            : !selectedColor
+              ? "Pick a color, then tap each wall in the photo to paint it."
               : regions.length
-                ? "Tap more of the same surface to include it, or tap a painted area again to remove it."
-                : `Tap the ${surface === "wall" ? "wall" : "ceiling"} in the photo to paint it.`}
+                ? "Tap more walls to include them, or tap a painted wall again to remove it. All walls share the selected color."
+                : "Tap a wall in the photo to paint it."}
         </p>
       </section>
 
       <aside className="space-y-5">
         <div className="space-y-2">
-          <Label>Surface</Label>
-          <div className="grid grid-cols-2 gap-2">
-            {surfaceTabs.map((tab) => (
-              <button
-                key={tab.kind}
-                type="button"
-                onClick={() => setSurface(tab.kind)}
-                className={`rounded-md border px-3 py-2 text-sm font-medium transition ${
-                  surface === tab.kind ? "border-accent bg-accent/10 text-foreground" : "border-border text-muted-foreground hover:bg-muted/60"
-                }`}
-              >
-                <span className="flex items-center justify-center gap-2">
-                  {surfaceColors[tab.kind] && (
-                    <span className="h-3.5 w-3.5 rounded-full border border-border" style={{ backgroundColor: surfaceColors[tab.kind]!.hex }} />
-                  )}
-                  {tab.label}
-                  {tab.count > 0 && <span className="text-xs text-muted-foreground">({tab.count})</span>}
-                </span>
-              </button>
-            ))}
-          </div>
-          {regions.length > 0 && (
-            <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
-              {surfaceTabs
-                .filter((tab) => tab.count > 0)
-                .map((tab) => (
-                  <button key={tab.kind} type="button" onClick={() => clearSurface(tab.kind)} className="inline-flex items-center gap-1 hover:text-foreground">
-                    <X className="h-3 w-3" /> Clear {tab.label.toLowerCase()}
-                  </button>
-                ))}
-            </div>
-          )}
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="color-search">{surface === "wall" ? "Wall color" : "Ceiling color"}</Label>
+          <Label htmlFor="color-search">Wall color</Label>
           <Input
             id="color-search"
             value={search}
@@ -513,7 +449,7 @@ export function RoomVisualizer() {
                   type="button"
                   onClick={() => chooseColor(color)}
                   className={`flex w-full items-center gap-3 border-b border-border p-2.5 text-left last:border-0 ${
-                    activeColor?.id === color.id ? "bg-accent/10" : "hover:bg-muted/60"
+                    selectedColor?.id === color.id ? "bg-accent/10" : "hover:bg-muted/60"
                   }`}
                 >
                   <span className="h-9 w-9 shrink-0 rounded border border-border" style={{ backgroundColor: color.hex }} />
@@ -530,7 +466,7 @@ export function RoomVisualizer() {
             )}
           </div>
           <p className="text-xs text-muted-foreground">
-            {surface === "wall" ? "Applies to every wall area you tap." : "Applies to every ceiling area you tap."}
+            Applies to every wall you tap — all painted walls update to this color at once.
           </p>
         </div>
 
