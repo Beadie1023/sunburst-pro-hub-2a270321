@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
-import { Download, Eye, EyeOff, ImagePlus, Loader2, Wand2 } from "lucide-react";
+import { Download, Eye, EyeOff, ImagePlus, Loader2, Sparkles, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -14,16 +14,20 @@ interface PaintColor {
   collection: string;
 }
 
-type ProjectType = "interior" | "exterior";
-type Surface = "wall" | "ceiling" | "roof" | "exterior-wall";
+type Space = "interior" | "exterior";
+type InteriorSurface = "wall" | "ceiling";
+type ExteriorSurface = "exterior-wall" | "roof";
 
-const MAX_IMAGE_EDGE = 1400;
+interface DetectedInstance {
+  box_2d: number[]; // [ymin, xmin, ymax, xmax], normalized 0-1000
+  mask: string; // base64 PNG, grayscale, cropped to box_2d
+}
 
 function hexToRgb(hex: string) {
   const normalized = hex.replace("#", "");
   const value = Number.parseInt(
     normalized.length === 3
-      ? normalized.split("").map((c) => c + c).join("")
+      ? normalized.split("").map((character) => character + character).join("")
       : normalized,
     16,
   );
@@ -31,15 +35,62 @@ function hexToRgb(hex: string) {
 }
 
 /**
- * Room Visualizer
+ * Decodes one detected instance's cropped grayscale mask PNG and writes it
+ * into `target` (a full-photo-sized Uint8Array), at the position given by
+ * its normalized box_2d. box_2d coordinates are 0-1000 per Gemini's
+ * convention, so they're scaled to the actual photo's pixel dimensions
+ * here. The mask PNG itself is sized to its own box, not the full photo,
+ * so it's stretched to the box's actual pixel size when drawn.
  *
- * Detection is real, not guessed from pixel color/edges: a single click on
- * "Walls" or "Ceiling" (or "Exterior walls" / "Roof") sends the photo to
- * Gemini's native segmentation feature, which finds every separate instance
- * of that surface in the photo (including walls at different angles,
- * separated by a corner or doorway) and returns one mask per instance.
- * Those masks are combined and the paint color is blended in using each
- * pixel's own luminance, so lighting/shadow/texture still read through.
+ * Resolves (rather than rejects) on a decode failure for a single instance
+ * — one bad mask shouldn't throw away every other wall that decoded fine.
+ */
+function decodeMaskInstance(instance: DetectedInstance, fullWidth: number, fullHeight: number, target: Uint8Array): Promise<void> {
+  return new Promise((resolve) => {
+    const [ymin, xmin, ymax, xmax] = instance.box_2d;
+    const left = Math.max(0, Math.min(fullWidth, Math.round((xmin / 1000) * fullWidth)));
+    const top = Math.max(0, Math.min(fullHeight, Math.round((ymin / 1000) * fullHeight)));
+    const right = Math.max(left + 1, Math.min(fullWidth, Math.round((xmax / 1000) * fullWidth)));
+    const bottom = Math.max(top + 1, Math.min(fullHeight, Math.round((ymax / 1000) * fullHeight)));
+    const boxWidth = right - left;
+    const boxHeight = bottom - top;
+
+    const image = new Image();
+    image.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = boxWidth;
+      canvas.height = boxHeight;
+      const context = canvas.getContext("2d");
+      if (!context) {
+        resolve();
+        return;
+      }
+      context.drawImage(image, 0, 0, boxWidth, boxHeight);
+      const data = context.getImageData(0, 0, boxWidth, boxHeight).data;
+      for (let y = 0; y < boxHeight; y += 1) {
+        for (let x = 0; x < boxWidth; x += 1) {
+          // Grayscale mask: R/G/B are equal, so just read R.
+          const value = data[(y * boxWidth + x) * 4];
+          if (value > 127) target[(top + y) * fullWidth + (left + x)] = 1;
+        }
+      }
+      resolve();
+    };
+    image.onerror = () => resolve();
+    image.src = `data:image/png;base64,${instance.mask}`;
+  });
+}
+
+/**
+ * Room Visualizer — detection-based.
+ *
+ * Unlike the earlier tap-to-flood-fill version, this sends the photo to the
+ * `segment-room-surface` edge function, which asks Gemini to return real
+ * segmentation masks for every instance of the chosen surface (every wall
+ * plane, the ceiling, etc.) in one call. That means one click covers every
+ * wall in the room — including ones separated by a corner a flood-fill
+ * could never safely cross — at the cost of an AI call per detection and
+ * the photo leaving the device (unlike the old fully local version).
  */
 export function RoomVisualizer() {
   const sourceCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -51,13 +102,15 @@ export function RoomVisualizer() {
   const [search, setSearch] = useState("");
 
   const [photoLoaded, setPhotoLoaded] = useState(false);
-  const [projectType, setProjectType] = useState<ProjectType>("interior");
-  const [surface, setSurface] = useState<Surface>("wall");
-  const [strength, setStrength] = useState(78);
+  const [space, setSpace] = useState<Space>("interior");
+  const [interiorSurface, setInteriorSurface] = useState<InteriorSurface>("wall");
+  const [exteriorSurface, setExteriorSurface] = useState<ExteriorSurface>("exterior-wall");
+  const [strength, setStrength] = useState(72);
   const [mask, setMask] = useState<Uint8Array | null>(null);
-  const [detecting, setDetecting] = useState(false);
+  const [isDetecting, setIsDetecting] = useState(false);
   const [showPaint, setShowPaint] = useState(true);
-  const [imageBase64, setImageBase64] = useState<{ data: string; mime: string } | null>(null);
+
+  const surfaceKey = space === "interior" ? interiorSurface : exteriorSurface;
 
   useEffect(() => {
     supabase
@@ -66,10 +119,13 @@ export function RoomVisualizer() {
       .eq("active", true)
       .order("name")
       .then(({ data, error }) => {
-        if (error) toast.error("Could not load the Sunburst colors.");
-        const available = (data ?? []) as PaintColor[];
-        setColors(available);
-        setSelectedColor(available[0] ?? null);
+        if (error) {
+          toast.error("Could not load the Sunburst colors.");
+        } else {
+          const available = (data ?? []) as PaintColor[];
+          setColors(available);
+          setSelectedColor(available[0] ?? null);
+        }
         setColorsLoading(false);
       });
   }, []);
@@ -86,23 +142,6 @@ export function RoomVisualizer() {
       )
       .slice(0, 100);
   }, [colors, search]);
-
-  const surfaceOptions: { key: Surface; label: string }[] =
-    projectType === "interior"
-      ? [
-          { key: "wall", label: "Walls" },
-          { key: "ceiling", label: "Ceiling" },
-        ]
-      : [
-          { key: "exterior-wall", label: "Exterior walls" },
-          { key: "roof", label: "Roof" },
-        ];
-
-  useEffect(() => {
-    // Reset to a valid surface whenever the project type changes.
-    setSurface(projectType === "interior" ? "wall" : "exterior-wall");
-    setMask(null);
-  }, [projectType]);
 
   const renderPreview = useCallback(() => {
     const source = sourceCanvasRef.current;
@@ -122,8 +161,9 @@ export function RoomVisualizer() {
       for (let pixel = 0; pixel < mask.length; pixel += 1) {
         if (!mask[pixel]) continue;
         const offset = pixel * 4;
-        const luminance =
-          (image.data[offset] * 0.2126 + image.data[offset + 1] * 0.7152 + image.data[offset + 2] * 0.0722) / 255;
+        // Preserve the surface's own lighting: scale the paint color by
+        // this pixel's original luminance instead of flatly overwriting it.
+        const luminance = (image.data[offset] * 0.2126 + image.data[offset + 1] * 0.7152 + image.data[offset + 2] * 0.0722) / 255;
         const light = 0.35 + luminance * 0.9;
         const targetRed = Math.min(255, paint.red * light);
         const targetGreen = Math.min(255, paint.green * light);
@@ -142,7 +182,10 @@ export function RoomVisualizer() {
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
-    if (!file.type.startsWith("image/")) return toast.error("Please choose a photo file.");
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please choose a photo file.");
+      return;
+    }
 
     const image = new Image();
     const url = URL.createObjectURL(file);
@@ -150,18 +193,14 @@ export function RoomVisualizer() {
       const source = sourceCanvasRef.current;
       const preview = previewCanvasRef.current;
       if (!source || !preview) return;
+      const MAX_IMAGE_EDGE = 1400;
       const scale = Math.min(1, MAX_IMAGE_EDGE / Math.max(image.width, image.height));
       source.width = Math.round(image.width * scale);
       source.height = Math.round(image.height * scale);
-      const context = source.getContext("2d", { willReadFrequently: true });
-      context?.drawImage(image, 0, 0, source.width, source.height);
+      source.getContext("2d")?.drawImage(image, 0, 0, source.width, source.height);
       preview.width = source.width;
       preview.height = source.height;
       preview.getContext("2d")?.drawImage(source, 0, 0);
-
-      const dataUrl = source.toDataURL("image/jpeg", 0.9);
-      const [, mime, data] = /^data:([^;]+);base64,(.+)$/.exec(dataUrl) ?? [, "image/jpeg", ""];
-      setImageBase64({ data: data ?? "", mime: mime ?? "image/jpeg" });
 
       setPhotoLoaded(true);
       setMask(null);
@@ -175,80 +214,51 @@ export function RoomVisualizer() {
     image.src = url;
   };
 
-  // Decodes one returned mask PNG and paints its "on" pixels into the shared
-  // full-resolution mask array at the position given by its bounding box.
-  const applyMaskImage = (
-    maskDataUrl: string,
-    box: number[],
-    canvasWidth: number,
-    canvasHeight: number,
-    target: Uint8Array,
-  ): Promise<void> =>
-    new Promise((resolve) => {
-      const [y0, x0, y1, x1] = box;
-      const px0 = Math.round((x0 / 1000) * canvasWidth);
-      const py0 = Math.round((y0 / 1000) * canvasHeight);
-      const px1 = Math.round((x1 / 1000) * canvasWidth);
-      const py1 = Math.round((y1 / 1000) * canvasHeight);
-      const boxW = Math.max(1, px1 - px0);
-      const boxH = Math.max(1, py1 - py0);
+  const changeSpace = (next: Space) => {
+    setSpace(next);
+    setMask(null); // a wall mask doesn't carry over to a roof, or vice versa
+  };
 
-      const img = new Image();
-      img.onload = () => {
-        const scratch = document.createElement("canvas");
-        scratch.width = boxW;
-        scratch.height = boxH;
-        const ctx = scratch.getContext("2d");
-        if (!ctx) return resolve();
-        ctx.drawImage(img, 0, 0, boxW, boxH);
-        const data = ctx.getImageData(0, 0, boxW, boxH).data;
-        for (let y = 0; y < boxH; y += 1) {
-          for (let x = 0; x < boxW; x += 1) {
-            const value = data[(y * boxW + x) * 4]; // grayscale mask — read the red channel
-            if (value > 127) {
-              const canvasX = px0 + x;
-              const canvasY = py0 + y;
-              if (canvasX >= 0 && canvasX < canvasWidth && canvasY >= 0 && canvasY < canvasHeight) {
-                target[canvasY * canvasWidth + canvasX] = 1;
-              }
-            }
-          }
-        }
-        resolve();
-      };
-      img.onerror = () => resolve();
-      img.src = maskDataUrl;
-    });
+  const changeSurface = (next: InteriorSurface | ExteriorSurface) => {
+    if (space === "interior") setInteriorSurface(next as InteriorSurface);
+    else setExteriorSurface(next as ExteriorSurface);
+    setMask(null); // stale detection for a different surface
+  };
 
-  const detectSurface = async () => {
+  const detectAndPaint = async () => {
     const source = sourceCanvasRef.current;
-    if (!source || !imageBase64) return;
-    setDetecting(true);
-    setShowPaint(true);
+    if (!source || !photoLoaded) return;
+    if (!selectedColor) {
+      toast.error("Pick a color first.");
+      return;
+    }
+
+    setIsDetecting(true);
     try {
+      const dataUrl = source.toDataURL("image/jpeg", 0.9);
+      const imageBase64 = dataUrl.split(",")[1] ?? "";
+
       const { data, error } = await supabase.functions.invoke("segment-room-surface", {
-        body: { imageBase64: imageBase64.data, mimeType: imageBase64.mime, surface },
+        body: { imageBase64, mimeType: "image/jpeg", surface: surfaceKey },
       });
-      if (error) throw new Error(error.message || "Detection request failed");
+      if (error) throw new Error(error.message || "Detection failed.");
       if (data?.error) throw new Error(data.error);
 
-      const masks: Array<{ box_2d: number[]; mask: string }> = data?.masks ?? [];
-      if (!masks.length) {
-        toast.error(`No ${surfaceOptions.find((s) => s.key === surface)?.label.toLowerCase()} were detected in this photo — try a clearer or wider shot.`);
+      const instances = (data?.masks ?? []) as DetectedInstance[];
+      if (!instances.length) {
+        toast.error("Couldn't detect that surface in this photo — try a clearer angle or a different photo.");
         setMask(null);
         return;
       }
 
       const combined = new Uint8Array(source.width * source.height);
-      await Promise.all(
-        masks.map((m) => applyMaskImage(`data:image/png;base64,${m.mask}`, m.box_2d, source.width, source.height, combined)),
-      );
+      await Promise.all(instances.map((instance) => decodeMaskInstance(instance, source.width, source.height, combined)));
       setMask(combined);
-      toast.success(`Found ${masks.length} ${masks.length === 1 ? "area" : "areas"}.`);
+      setShowPaint(true);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not detect that surface.");
+      toast.error(err instanceof Error ? err.message : "Detection failed.");
     } finally {
-      setDetecting(false);
+      setIsDetecting(false);
     }
   };
 
@@ -265,88 +275,125 @@ export function RoomVisualizer() {
   return (
     <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_300px]">
       <section className="space-y-3">
-        <div className="flex gap-2">
-          {(["interior", "exterior"] as ProjectType[]).map((type) => (
+        <div className="flex gap-1 rounded-lg border border-border bg-muted/40 p-1">
+          {(["interior", "exterior"] as Space[]).map((option) => (
             <button
-              key={type}
+              key={option}
               type="button"
-              onClick={() => setProjectType(type)}
-              className={`flex-1 rounded-md border px-3 py-2 text-sm font-semibold capitalize ${
-                projectType === type ? "border-accent bg-accent text-accent-foreground" : "border-border hover:bg-muted/60"
+              onClick={() => changeSpace(option)}
+              className={`flex-1 rounded-md px-3 py-1.5 text-sm font-semibold capitalize transition-colors ${
+                space === option ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              {type}
+              {option}
             </button>
           ))}
         </div>
 
         <div className="relative flex min-h-80 items-center justify-center overflow-hidden rounded-lg border border-border bg-muted/40">
           <canvas ref={sourceCanvasRef} className="hidden" />
-          <canvas ref={previewCanvasRef} className={`max-h-[560px] w-full object-contain ${photoLoaded ? "" : "hidden"}`} aria-label="Room color preview" />
+          <canvas
+            ref={previewCanvasRef}
+            className={`max-h-[620px] w-full object-contain ${photoLoaded ? "" : "hidden"}`}
+            aria-label="Room color preview"
+          />
+          {isDetecting && (
+            <div className="absolute inset-0 flex items-center justify-center gap-2 bg-background/70 text-sm font-medium text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Detecting {surfaceKey === "wall" ? "walls" : surfaceKey === "ceiling" ? "the ceiling" : surfaceKey === "roof" ? "the roof" : "exterior walls"}…
+            </div>
+          )}
           {!photoLoaded && (
             <label className="flex min-h-80 w-full cursor-pointer flex-col items-center justify-center gap-3 text-center">
-              <span className="flex h-12 w-12 items-center justify-center rounded-full bg-accent/15 text-accent"><ImagePlus className="h-6 w-6" /></span>
-              <span className="font-semibold text-foreground">Upload the project photo</span>
-              <span className="max-w-xs text-sm text-muted-foreground">Use a clear, well-lit photo. It's processed securely and never stored.</span>
+              <span className="flex h-12 w-12 items-center justify-center rounded-full bg-accent/15 text-accent">
+                <ImagePlus className="h-6 w-6" />
+              </span>
+              <span className="font-semibold text-foreground">Upload or take a room photo</span>
+              <span className="max-w-xs text-sm text-muted-foreground">
+                Use a clear photo where the surface is visible and evenly lit.
+              </span>
               <input type="file" accept="image/*" capture="environment" onChange={loadPhoto} className="hidden" />
             </label>
           )}
         </div>
 
         {photoLoaded && (
-          <>
-            <div className="flex flex-wrap gap-2">
-              {surfaceOptions.map((option) => (
-                <Button
-                  key={option.key}
-                  variant={surface === option.key ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => { setSurface(option.key); setMask(null); }}
+          <div className="flex gap-1 rounded-lg border border-border bg-muted/40 p-1">
+            {(space === "interior" ? (["wall", "ceiling"] as InteriorSurface[]) : (["exterior-wall", "roof"] as ExteriorSurface[])).map(
+              (option) => (
+                <button
+                  key={option}
+                  type="button"
+                  onClick={() => changeSurface(option)}
+                  className={`flex-1 rounded-md px-3 py-1.5 text-sm font-semibold transition-colors ${
+                    surfaceKey === option ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground"
+                  }`}
                 >
-                  {option.label}
-                </Button>
-              ))}
-              <Button size="sm" onClick={detectSurface} disabled={detecting} className="bg-accent text-accent-foreground hover:bg-accent/90">
-                {detecting ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Wand2 className="mr-1.5 h-4 w-4" />}
-                {detecting ? "Detecting…" : mask ? "Re-detect" : "Detect & paint"}
-              </Button>
-            </div>
+                  {option === "wall" ? "Walls" : option === "ceiling" ? "Ceiling" : option === "exterior-wall" ? "Exterior walls" : "Roof"}
+                </button>
+              ),
+            )}
+          </div>
+        )}
 
-            <div className="flex flex-wrap items-center gap-2">
-              <Button variant="outline" size="sm" asChild>
-                <label className="cursor-pointer"><ImagePlus className="mr-1.5 h-4 w-4" />New photo<input type="file" accept="image/*" capture="environment" onChange={loadPhoto} className="hidden" /></label>
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => setShowPaint((v) => !v)} disabled={!mask}>
-                {showPaint ? <EyeOff className="mr-1.5 h-4 w-4" /> : <Eye className="mr-1.5 h-4 w-4" />}
-                {showPaint ? "Before" : "After"}
-              </Button>
-              <Button size="sm" onClick={download} disabled={!mask} className="ml-auto">
-                <Download className="mr-1.5 h-4 w-4" />Download
-              </Button>
-            </div>
-          </>
+        {photoLoaded && (
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" size="sm" asChild>
+              <label className="cursor-pointer">
+                <ImagePlus className="mr-1.5 h-4 w-4" />
+                New photo
+                <input type="file" accept="image/*" capture="environment" onChange={loadPhoto} className="hidden" />
+              </label>
+            </Button>
+            <Button size="sm" onClick={detectAndPaint} disabled={isDetecting || !selectedColor}>
+              <Sparkles className="mr-1.5 h-4 w-4" />
+              {isDetecting ? "Detecting…" : "Detect & paint"}
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setMask(null)} disabled={!mask}>
+              <RotateCcw className="mr-1.5 h-4 w-4" />
+              Clear detection
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setShowPaint((visible) => !visible)} disabled={!mask}>
+              {showPaint ? <EyeOff className="mr-1.5 h-4 w-4" /> : <Eye className="mr-1.5 h-4 w-4" />}
+              {showPaint ? "Before" : "After"}
+            </Button>
+            <Button size="sm" onClick={download} disabled={!mask} className="ml-auto">
+              <Download className="mr-1.5 h-4 w-4" />
+              Download
+            </Button>
+          </div>
         )}
 
         <p className="text-sm text-muted-foreground">
-          {photoLoaded
-            ? `Pick "${surfaceOptions.find((s) => s.key === surface)?.label}" then Detect & paint — every matching surface in the photo is found automatically and shares the color you pick.`
-            : "Your photo is sent securely for detection only, and is not stored."}
+          {mask
+            ? "Detected. Pick another color to repaint the same surfaces, or Detect & paint again after changing the photo or surface."
+            : photoLoaded
+              ? isDetecting
+                ? "Detecting…"
+                : "Pick a color, then Detect & paint."
+              : "Your photo is sent to Sunburst's AI to detect surfaces before painting."}
         </p>
       </section>
 
       <aside className="space-y-5">
         <div className="space-y-2">
           <Label htmlFor="color-search">Sunburst color</Label>
-          <Input id="color-search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search name, code, or collection" />
+          <Input id="color-search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search name, code, or collection" />
           <div className="max-h-72 overflow-y-auto rounded-md border border-border">
             {colorsLoading ? (
-              <div className="flex items-center justify-center p-8 text-muted-foreground"><Loader2 className="mr-2 h-4 w-4 animate-spin" />Loading colors</div>
+              <div className="flex items-center justify-center p-8 text-muted-foreground">
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Loading colors
+              </div>
             ) : filteredColors.length ? (
               filteredColors.map((color) => (
                 <button
                   key={color.id}
                   type="button"
-                  onClick={() => { setSelectedColor(color); setShowPaint(true); }}
+                  onClick={() => {
+                    setSelectedColor(color);
+                    setShowPaint(true);
+                  }}
                   className={`flex w-full items-center gap-3 border-b border-border p-2.5 text-left last:border-0 ${
                     selectedColor?.id === color.id ? "bg-accent/10" : "hover:bg-muted/60"
                   }`}
@@ -354,7 +401,9 @@ export function RoomVisualizer() {
                   <span className="h-9 w-9 shrink-0 rounded border border-border" style={{ backgroundColor: color.hex }} />
                   <span className="min-w-0">
                     <span className="block truncate text-sm font-semibold">{color.name}</span>
-                    <span className="block text-xs text-muted-foreground">{color.code} · {color.collection}</span>
+                    <span className="block text-xs text-muted-foreground">
+                      {color.code} · {color.collection}
+                    </span>
                   </span>
                 </button>
               ))
@@ -362,12 +411,27 @@ export function RoomVisualizer() {
               <p className="p-5 text-center text-sm text-muted-foreground">No matching colors</p>
             )}
           </div>
-          <p className="text-xs text-muted-foreground">Applies to every detected {surfaceOptions.find((s) => s.key === surface)?.label.toLowerCase()}.</p>
+          <p className="text-xs text-muted-foreground">
+            {mask ? "Changing the color repaints every detected surface." : "Applies once you Detect & paint."}
+          </p>
         </div>
 
-        <div className="space-y-2 border-t border-border pt-4">
-          <div className="flex justify-between text-sm"><Label htmlFor="strength">Paint strength</Label><span className="text-muted-foreground">{strength}%</span></div>
-          <input id="strength" type="range" min="30" max="100" value={strength} onChange={(e) => setStrength(Number(e.target.value))} className="w-full accent-accent" />
+        <div className="space-y-4 border-t border-border pt-4">
+          <div className="space-y-2">
+            <div className="flex justify-between text-sm">
+              <Label htmlFor="strength">Paint strength</Label>
+              <span className="text-muted-foreground">{strength}%</span>
+            </div>
+            <input
+              id="strength"
+              type="range"
+              min="30"
+              max="100"
+              value={strength}
+              onChange={(event) => setStrength(Number(event.target.value))}
+              className="w-full accent-accent"
+            />
+          </div>
         </div>
       </aside>
     </div>
