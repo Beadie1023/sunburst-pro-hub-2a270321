@@ -42,7 +42,7 @@ Deno.serve(async (req) => {
     if (!LOVABLE_API_KEY) return json({ error: "AI gateway not configured" }, 500);
 
     const target = SURFACE_PROMPTS[surface];
-    const prompt = `Give the segmentation masks for ${target} in this photo. There may be more than one separate instance (for example, several walls at different angles) \u2014 include one entry per separate visible surface. Output ONLY a JSON array (no markdown, no explanation) where each entry has exactly these keys: "box_2d" (the 2D bounding box as [ymin, xmin, ymax, xmax], normalized to 0-1000), and "mask" (the segmentation mask for that box, as a base64-encoded PNG grayscale image cropped to the box, where light pixels are the surface and dark pixels are not). If none are visible, output an empty array.`;
+    const prompt = `Give the segmentation masks for ${target} in this photo. There may be more than one separate instance (for example, several walls at different angles) — include one entry per separate visible surface. Output ONLY a JSON object (no markdown, no explanation) of the exact shape {"surfaces": [...]}, where each entry in "surfaces" has exactly these keys: "box_2d" (the 2D bounding box as [ymin, xmin, ymax, xmax], normalized to 0-1000), and "mask" (the segmentation mask for that box, as a base64-encoded PNG grayscale image cropped to the box, where light pixels are the surface and dark pixels are not). If none are visible, output {"surfaces": []}.`;
 
     const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -62,7 +62,7 @@ Deno.serve(async (req) => {
       }),
     });
 
-    if (aiRes.status === 429) return json({ error: "AI rate limit reached \u2014 please try again shortly." }, 429);
+    if (aiRes.status === 429) return json({ error: "AI rate limit reached — please try again shortly." }, 429);
     if (!aiRes.ok) {
       console.error("AI gateway error", aiRes.status, await aiRes.text());
       return json({ error: "Could not detect surfaces in that photo" }, 502);
