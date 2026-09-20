@@ -308,7 +308,20 @@ export function ColorMatcherTool({ onAddToProject }: ColorMatcherToolProps) {
         if (msg.includes("429") || msg.toLowerCase().includes("rate")) {
           throw new Error("AI rate limit reached — please try again in a moment.");
         }
-        throw new Error("Could not read a color from that photo. Try the Hex/RGB or Color Name tab instead.");
+        // supabase-js's top-level error.message is a generic wrapper for any
+        // non-2xx response — the function's actual reason (bad photo, missing
+        // key, etc.) is in the response body, reachable via error.context.
+        let serverMessage: string | null = null;
+        try {
+          const context = (error as any)?.context;
+          if (context && typeof context.json === "function") {
+            const body = await context.json();
+            if (typeof body?.error === "string") serverMessage = body.error;
+          }
+        } catch {
+          // context wasn't readable JSON — fall through to the generic message below
+        }
+        throw new Error(serverMessage || "Could not read a color from that photo. Try the Hex/RGB or Color Name tab instead.");
       }
       if (!data?.hex) {
         throw new Error(data?.error || "Could not identify a clear color in that photo.");
