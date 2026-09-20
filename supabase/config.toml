@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.segment-room-surface]
 verify_jwt = false
+
+[functions.match-color-photo]
+nverify_jwt = false
