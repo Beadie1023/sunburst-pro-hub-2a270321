@@ -16,11 +16,12 @@
  *   POST /api/colors/match-competitor, which holds the Gemini API key
  *   server-side (GEMINI_API_KEY, no VITE_ prefix) and returns its own
  *   Delta-E-ranked matches. No Gemini key is ever exposed to the browser.
- * - Photo Upload tab: NOT WIRED. /api/colors/match-competitor only
- *   accepts a text `input_color` field — it has no image/vision
- *   handling. This tab currently shows an explanatory inline error
- *   instead of silently failing or reintroducing a client-side Gemini
- *   vision call. See the note above handlePhotoFile.
+ * - Photo Upload tab: calls the match-color-photo edge function, which
+ *   uses Gemini vision (server-side key, same pattern as above) to read
+ *   the dominant paint color out of the photo as a hex code. That hex is
+ *   then run through the same local Delta-E matcher as the Hex/RGB tab
+ *   (via runMatchByHex), so results stay consistent across every tab
+ *   rather than duplicating matching logic in a second place.
  *
  * Regardless of source, every match is normalized into the same
  * MatchedColor shape before it reaches state or onAddToProject, so the
@@ -269,12 +270,10 @@ export function ColorMatcherTool({ onAddToProject }: ColorMatcherToolProps) {
   };
 
   /**
-   * NOTE: Photo matching is intentionally not wired to a backend call.
-   * /api/colors/match-competitor only accepts a text `input_color` field —
-   * it has no image/base64 parameter, so there is nothing to call here.
-   * This validates the file (for a good UX) and then surfaces a clear
-   * explanatory error rather than silently failing or sending image
-   * data to an endpoint that ignores it.
+   * Reads a photo of a paint chip or wall, sends it to the
+   * match-color-photo edge function to identify the dominant color as a
+   * hex code, then hands that hex to the same local Delta-E matcher the
+   * Hex/RGB tab uses — so results stay consistent across every tab.
    */
   const handlePhotoFile = async (file: File) => {
     setError("photo", null);
@@ -289,10 +288,40 @@ export function ColorMatcherTool({ onAddToProject }: ColorMatcherToolProps) {
     }
 
     setPhotoPreview(URL.createObjectURL(file));
-    setError(
-      "photo",
-      "Photo matching isn't available yet — the server doesn't have an image-matching endpoint. Try the Color Name or Hex/RGB tab instead.",
-    );
+    setLoading(true);
+    setResults(null);
+    try {
+      const dataUrl: string = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = () => reject(new Error("Could not read that file."));
+        reader.readAsDataURL(file);
+      });
+      const base64 = dataUrl.split(",")[1] ?? "";
+
+      const { data, error } = await supabase.functions.invoke("match-color-photo", {
+        body: { imageBase64: base64, mimeType: file.type },
+      });
+
+      if (error) {
+        const msg = (error as any)?.message || "";
+        if (msg.includes("429") || msg.toLowerCase().includes("rate")) {
+          throw new Error("AI rate limit reached — please try again in a moment.");
+        }
+        throw new Error("Could not read a color from that photo. Try the Hex/RGB or Color Name tab instead.");
+      }
+      if (!data?.hex) {
+        throw new Error(data?.error || "Could not identify a clear color in that photo.");
+      }
+
+      await runMatchByHex(data.hex.replace("#", ""));
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Could not process that photo.";
+      setError("photo", message);
+      setResults(null);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
@@ -477,4 +506,3 @@ export function ColorMatcherTool({ onAddToProject }: ColorMatcherToolProps) {
     </div>
   );
 }
-
